@@ -3,8 +3,14 @@
 using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
 using json = nlohmann::json;
 
-template <uint16_t N>
-IQWebSocketServer<N>::IQWebSocketServer(unsigned short port, std::string endpoint) {
+bool IQWebSocketServer::checkQueue(boost::asio::ip::address ip_addr) {
+                queue_mutex.lock();
+                bool returnbool = (std::find(connection_queue.begin(), connection_queue.end(), ip_addr) == connection_queue.end());
+                queue_mutex.unlock();
+                return returnbool;
+            }
+
+IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) {
 	try {
 		server.reset(new WsServer());
         socket_counter.store(0);
@@ -29,20 +35,38 @@ IQWebSocketServer<N>::IQWebSocketServer(unsigned short port, std::string endpoin
 				
 			};
 
+            
+
 			echo.on_open = [this](std::shared_ptr<WsServer::Connection> connection) {
 				std::cout << "Server: Opened connection " << connection.get() << " to " << connection->remote_endpoint().address()
 				<< ":" << connection->remote_endpoint().port();
                 int status_ = 1;
                 json j;
+                bool queued = false;
                 while ((status_ == 1)) {
+                    queue_mutex.lock();
                     uint16_t counter = socket_counter.load();
                     if (counter > 5) {
                         j.clear();
-                        j["Served"] = false;
-                        j["Queue Position"] = counter - 5;
-                        
+                        j["Served"] = false;                     
+                        if (!queued) {
+                            connection_queue.push_back(connection->remote_endpoint().address());
+                            j["Queue Position"] = connection_queue.size();
+                            queued = true;
+                        }
+                        else {
+                            std::vector<boost::asio::ip::address>::iterator itr = std::find(connection_queue.begin(), connection_queue.end(), connection->remote_endpoint().address());
+                            j["Queue Position"] = std::distance(connection_queue.begin(), itr) + 1;
+                        }       
                     }
-                    else {
+                    else if (queued) {
+                        boost::asio::ip::address front_ip = connection_queue.front();
+                        if (front_ip == connection->remote_endpoint().address()) {
+                            connection_queue.erase(connection_queue.begin());
+                            queued = false;
+                        }
+                    }
+                    if (counter <= 5 && !queued /*checkQueue(connection->remote_endpoint().address())*/) {
                         uint16_t connections_from_this_ip = 0;
                         std::unordered_set<std::shared_ptr<WsServer::Connection>> my_connections;
                         my_connections = server->get_connections();
@@ -58,10 +82,12 @@ IQWebSocketServer<N>::IQWebSocketServer(unsigned short port, std::string endpoin
                         }
                         else {
                             status_ = 0;
+                            socket_counter.fetch_add(1);
                             j.clear();
                             j["Duplicate"] = false;
                         }
                     }
+                    queue_mutex.unlock();
                     connection->send(j.dump(), [&status_](const SimpleWeb::error_code &ec) {
                             if(ec) {
                                 std::cout << "Server: Error sending message. " <<
@@ -74,7 +100,8 @@ IQWebSocketServer<N>::IQWebSocketServer(unsigned short port, std::string endpoin
                         using namespace std::chrono_literals;
                         std::this_thread::sleep_for(1s);
                     }
-                }                
+                }
+                                
                 while ((status_ == 0)) {
                     {
                         j.clear();
@@ -96,6 +123,7 @@ IQWebSocketServer<N>::IQWebSocketServer(unsigned short port, std::string endpoin
 							});
                     }
                 }
+                socket_counter.fetch_sub(1);
                 connection->send_close(1006);
 			};
 
@@ -115,11 +143,11 @@ IQWebSocketServer<N>::IQWebSocketServer(unsigned short port, std::string endpoin
 		server.release();
 	}
 }
-template <uint16_t N>
-void IQWebSocketServer<N>::writeToBuffer(const double (&buffer)[N*2] ) {
+
+void IQWebSocketServer::writeToBuffer(const double * buffer ) {
     {
         std::unique_lock<std::shared_mutex> lock(buffer_mutex);
-        for (int i = 0; i < N; i++) {
+        for (int i = 0; i < 1000; i++) {
             i_buffer[i] = buffer[2*i*5];
             q_buffer[i] = buffer[2*i*5 + 1];
         }
@@ -131,14 +159,12 @@ void IQWebSocketServer<N>::writeToBuffer(const double (&buffer)[N*2] ) {
     buffer_cv.notify_all();
 }
 
-template <uint16_t N>
-IQWebSocketServer<N>::~IQWebSocketServer() {
+IQWebSocketServer::~IQWebSocketServer() {
 	server->stop();
 	if (serverThread.joinable())
 		serverThread.join();
 }
 
-template <uint16_t N>
-void IQWebSocketServer<N>::run() {
+void IQWebSocketServer::run() {
 	serverThread = std::thread { [&] {server->start();} };
 }

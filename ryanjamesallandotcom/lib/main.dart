@@ -94,15 +94,6 @@ class MyApp extends StatelessWidget {
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key key, this.title}) : super(key: key);
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -111,31 +102,9 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   bool _playing = false;
-
-  bool _connected = true;
-  bool _queued = false;
-  int  _queuePosition = 0;
-  bool _duplicate = false;
-  bool _served = true;
-  bool _ready = false;
-  List<int> rawISamples = [];
-  List<int> rawQSamples = [];
-  //Number of windows processed each cycle: 429
-  //Number of samples removes from samples after processing cycle: 219648
-  //Number of samples processed each cycle: 220160
-  List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
-
-  
-
   static var url = window.location.hostname;
-  var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
   void _playAudio() {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
       if (!_playing) {
         _playing = true;
         js.context.callMethod('playAudio', ["http://"+url+"/play/hls/index.m3u8"]);
@@ -147,13 +116,6 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  Future<List<int>> _processSamples(List<int> rawISamples, List<int> rawQSamples) async {
-    Map<String,List<int>> myMap = Map();
-    myMap["I"] = rawISamples;
-    myMap["Q"] = rawQSamples;
-    return compute(iqToMagnitude, myMap);
-  }
-
   @override
   Widget build(BuildContext context) {
     // This method is rerun every time setState is called, for instance as done
@@ -162,8 +124,9 @@ class _MyHomePageState extends State<MyHomePage> {
     // The Flutter framework has been optimized to make rerunning build methods
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
-    double _width = MediaQuery.of(context).size.width;
-    double _height = MediaQuery.of(context).size.height;
+    var  _mediaQuery = MediaQuery.of(context);
+    double _width = _mediaQuery.size.width;
+    double _height = _mediaQuery.size.height;
 
     return Scaffold(
       /*appBar: AppBar(
@@ -204,14 +167,40 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
             SizedBox(height: 10),
-            Text("Ryan Allan", style: TextStyle(fontSize:41, color: Colors.white)),
+            SizedBox(  
+              height:(_width < 450) ? 60 :70,
+              child: Row(  
+                children: [  
+                  Text("Ryan Allan", style: TextStyle(fontSize: (_width < 450) ? 31 :41, color: Colors.white)),
+                  SizedBox(width: 10),
+                  Ink(
+                    decoration: const ShapeDecoration(
+                      color: Colors.white,
+                      shape: CircleBorder(),
+                    ),
+                    height: (_width < 450) ? 40 :50,
+                    child: IconButton(
+                      icon: _playing ? Icon(Icons.pause) : Icon(Icons.play_arrow),
+                      color: Colors.black,
+                      tooltip: _playing ? 'Stop digitally demodulated audio' : 'Play digitally demodulated audio',
+                      onPressed: _playAudio
+                    ),
+                  ),
+                ],
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                
+              )
+            ),
+            
             SizedBox(height: 10),
+            
             Container( 
               height:50,
               
               child: Row(children: [
                 Container(
-                  width: 150,  
+                  width: (_width < 450) ? _width/3.5 :150,  
                   alignment: Alignment.center,
                   decoration: BoxDecoration(  
                     border: Border( 
@@ -221,10 +210,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       right: BorderSide(color: Colors.white, width: 2.5)
                     )
                   ),
-                  child: Text("Home", style: TextStyle(fontSize: 21, color: Colors.white))
+                  child: Text("Home", style: TextStyle(fontSize: (_width < 450) ? 14 :21, color: Colors.white))
                 ),
                 Container(
-                  width: 150, 
+                  width: (_width < 450) ? _width/3.5 :150,  
                   alignment: Alignment.center, 
                   decoration: BoxDecoration(  
                     border: Border(
@@ -234,10 +223,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       left: BorderSide(color: Colors.white, width: 2.5)
                     )
                   ),
-                  child: Text("About me", style: TextStyle(fontSize: 21, color: Colors.white))
+                  child: Text("About me", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.white))
                 ),
                 Container(
-                  width: 150,  
+                  width: (_width < 450) ? _width/3.5 :150,   
                   alignment: Alignment.center,
                   decoration: BoxDecoration(  
                     border: Border( 
@@ -247,31 +236,75 @@ class _MyHomePageState extends State<MyHomePage> {
                       left: BorderSide(color: Colors.white, width: 2.5)
                     )
                   ),
-                  child: Text("What is this?", style: TextStyle(fontSize: 21, color: Colors.white))
+                  child: Text("What is this?", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.white))
                 ),
               ],mainAxisAlignment: MainAxisAlignment.center)
             ),
-            Divider(  
+            /*Divider(  
               color: Colors.white,
               endIndent: 60,
               indent: 60,
               height: 50,
               thickness: 3,
-            ),
-            /*Ink(
-              decoration: const ShapeDecoration(
-                color: Colors.white,
-                shape: CircleBorder(),
-              ),
-              child: IconButton(
-                icon: _playing ? Icon(Icons.pause) : Icon(Icons.play_arrow),
-                color: Colors.black,
-                tooltip: _playing ? 'Stop digitally demodulated audio' : 'Play digitally demodulated audio',
-                onPressed: _playAudio
-              ),
             ),*/
+            SizedBox(height: 10),
+            RealTimeSpectrogram(height: _height, width: _width),
+            
+          ],
+        ),
+      ),
+      ),
+      /*floatingActionButton: FloatingActionButton(
+        onPressed: _playAudio,
+        tooltip: 'Increment',
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        child: Icon(Icons.play_arrow),
+        elevation: 3,
+      ),*/ // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+}
 
-            StreamBuilder(  
+class RealTimeSpectrogram extends StatefulWidget {
+  RealTimeSpectrogram({Key key, this.width, this.height}) : super(key: key);
+
+  final double width;
+  final double height;
+
+  @override
+  _RealTimeSpectrogramState createState() => _RealTimeSpectrogramState();
+}
+
+class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
+  bool _connected = true;
+  bool _queued = false;
+  int  _queuePosition = 0;
+  bool _duplicate = false;
+  bool _served = true;
+  bool _ready = false;
+  List<int> rawISamples = [];
+  List<int> rawQSamples = [];
+  //Number of windows processed each cycle: 429
+  //Number of samples removes from samples after processing cycle: 219648
+  //Number of samples processed each cycle: 220160
+  List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
+
+  static var url = window.location.hostname;
+  var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
+
+  Future<List<int>> _processSamples(List<int> rawISamples, List<int> rawQSamples) async {
+    Map<String,List<int>> myMap = Map();
+    myMap["I"] = rawISamples;
+    myMap["Q"] = rawQSamples;
+    return compute(iqToMagnitude, myMap);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    double _width = widget.width;
+    double _height = widget.height;
+    return StreamBuilder(  
               stream: channel.stream,
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
@@ -279,12 +312,15 @@ class _MyHomePageState extends State<MyHomePage> {
                   if (message.containsKey("Served")) {
                     setState(() {
                       _connected = true;
+                      _queued = false;
+                      _duplicate = false;
                       _served = message["Served"];
                     });
                   }
                   if (message.containsKey("Queue Position")) {
                     setState(() {
                       _connected = true;
+                      _queued = true;
                       _queuePosition = message["Queue Position"];
                     });
                   }
@@ -323,22 +359,22 @@ class _MyHomePageState extends State<MyHomePage> {
                        : _served ? 
                          Column(children: [
                            //Center(child: Text("Frequency (MHz)", style: TextStyle(fontSize:18, color: Colors.white))),
-                           Row(children: [
+                           /*Row(children: [
                             Container(
                               padding: EdgeInsets.only(left: 120),
                               child: Text("92.6 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
                             ),
-                            Text("92.7 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
+                            Text("89.7 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
                             Container(
                               padding: EdgeInsets.only(right: 120),
                               child: Text("92.8 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
                             ),
                            ],
-                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                           ),
+                           mainAxisAlignment: MainAxisAlignment.center,
+                           ),*/
                            Expanded( child:
                            Row(children: [
-                            Container( 
+                            /*Container( 
                             width: 120,
                             padding: EdgeInsets.fromLTRB(10, 0, 0, 0),
                             child: Column(children: [
@@ -379,29 +415,62 @@ class _MyHomePageState extends State<MyHomePage> {
                             ],
                             crossAxisAlignment: CrossAxisAlignment.end,
                             ),
+                            ),*/
+                            Container(  
+                              width: 20,
                             ),
-                            Expanded(child: Container(
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                  left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                  right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                  bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                            Expanded(child:
+                              Column( 
+                              children: [
+                                Center(child: Text("89.7 MHz", style: TextStyle(fontSize:(_width < 450) ? 12:18, color: Colors.white)),),
+                                Expanded( 
+                                child: Container(
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                                    left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                                    right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                                    bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                                  ),
                                 ),
+                                child: CustomPaint( 
+                                    painter: SamplesPainter(displayedMagnitude),
+                                    child: Center(child: Text(""))
+                                  ) 
+                                
+                                  //Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
+                                )
+                                ),
+                                Container( 
+                                  height: 70,
+                                  padding: EdgeInsets.fromLTRB(0, 10, 0, 10),
+                                  child :Row(children: [
+                                  Text("0 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
+                                  SizedBox(width:5),
+                                  Expanded(child: Container(
+                                    height: 25,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight, 
+                                        colors: [const Color(0xFFFFFFFF), const Color(0xFF000000)], 
+                                        ),
+                                      ),
+                                    )
+                                  ),
+                                  SizedBox(width:5),
+                                  Text("-80 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
+                                  ],
+                                  ),
+                                ),
+                              ]
                               ),
-                              child: CustomPaint( 
-                                  painter: SamplesPainter(displayedMagnitude),
-                                  child: Center(child: Text(""))
-                                ) 
-                              
-                                //Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
-                            )
                             ),
-                            Container( 
+                            /*Container( 
                             width: 120,
                             padding: EdgeInsets.fromLTRB(10, 0, 10, 0),
                             child :Column(children: [
-                             Text("0 dBFS", style: TextStyle(fontSize:18, color: Colors.white)),
+                             Text("0 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
                              SizedBox(height:5),
                              Expanded(child: Container(
                               width: 25,
@@ -415,10 +484,13 @@ class _MyHomePageState extends State<MyHomePage> {
                               )
                              ),
                              SizedBox(height:5),
-                             Text("-80 dBFS", style: TextStyle(fontSize:18, color: Colors.white)),
+                             Text("-80 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
                             ],
                             ),
-                            ),
+                            ),*/
+                            Container( 
+                              width: 20,
+                            )
                            ],
                            )
                            )
@@ -426,21 +498,9 @@ class _MyHomePageState extends State<MyHomePage> {
                        : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
                 );
               }
-            )
-          ],
-        ),
-      ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _playAudio,
-        tooltip: 'Increment',
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        child: Icon(Icons.play_arrow),
-        elevation: 3,
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+            );
   }
+
 }
 
 class SamplesPainter extends CustomPainter {

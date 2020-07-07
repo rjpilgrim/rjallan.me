@@ -15,7 +15,7 @@
 #include "gnuPlotPipe.h"
 #endif
 
-#define USE_WAV 0
+#define USE_WAV 1
 #define STREAM_ALSA 0
 
 
@@ -401,7 +401,7 @@ int main(int argc, char** argv)
 
     lms_stream_meta_t my_stream_data;
 
-    auto my_server = std::make_unique<IQWebSocketServer<5000>>(80, "^/socket/?$");
+    auto my_server = std::make_unique<IQWebSocketServer>(8079, "^/socket/?$");
     my_server->run();
 
     //Enable test signal generation
@@ -515,7 +515,7 @@ int main(int argc, char** argv)
         double unwrapped[sampleCnt+filter_order + 1] = {0};
         double difference[myCnt+filter_order] = {0};
         double convert_to_pcm[myCnt] = {0};
-        uint16_t downsampled_audio[downSampleCnt] = {0};
+        int16_t downsampled_audio[downSampleCnt] = {0};
         
         //printf("Received buffer with %d samples with first sample %lu microseconds\n", samplesRead, my_stream_data.timestamp);
         try {
@@ -530,7 +530,9 @@ int main(int argc, char** argv)
         }
 
 
-        my_server->writeToBuffer(*reinterpret_cast<double(*)[10000]>(&(bufferFiltered[2 * filter_order])));
+        //my_server->writeToBuffer(*reinterpret_cast<double(*)[10000]>(&(bufferFiltered[2 * filter_order + 2])));
+
+        //my_server->writeToBuffer((&(bufferFiltered[2 * filter_order + 2])));
 
         int samplesFiltered = samplesRead+filter_order + 1;
 
@@ -582,10 +584,11 @@ int main(int argc, char** argv)
         for (int i = 0; i < ((samplesRead)/25); ++i) {
             //downsampled_audio[i] = convert_to_pcm[i*25];
             downsampled_audio[i] = (int16_t) ceil((convert_to_pcm[i * 25] - 0.0075) * (MAX_PCM ));
+            //downsampled_audio[i] = ceil((convert_to_pcm[i * 25]) * (MAX_PCM/3));
             //downsampled_audio[i] = (uint16_t) convert_to_pcm[i * 25] * 20;
             //if (convert_to_pcm[i * 25] * 20 > MAX_PCM) {
             if (downsampled_audio[i] >= MAX_PCM) {
-                printf("I got a maxed out sample\n");
+                printf("I got a maxed out sample: %d from %f\n", downsampled_audio[i], convert_to_pcm[i * 25]);
                 downsampled_audio[i] = MAX_PCM;
             }
 #if USE_WAV    
@@ -597,7 +600,7 @@ int main(int argc, char** argv)
         fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
 #else
 #if STREAM_ALSA
-        alsa_samples = (unsigned short *) downsampled_audio;
+        alsa_samples = (short *) downsampled_audio;
         int cptr = 200;
         while (cptr > 0) {
             //err = 4000;

@@ -7,13 +7,13 @@
 #include <condition_variable>
 #include <atomic>
 #include <chrono>
+#include <algorithm>
 
 #include <nlohmann/json.hpp>
 #include <server_ws.hpp>
 
 using json = nlohmann::json;
 
-template <uint16_t N = 5000>
 class IQWebSocketServer {
 public:
 
@@ -26,19 +26,23 @@ public:
 
 	IQWebSocketServer(unsigned short port, std::string endpoint);
 
+	bool checkQueue(boost::asio::ip::address ip_addr);
+
 	virtual ~IQWebSocketServer();
 
-	void writeToBuffer(const double (&buffer)[N*2] );
+	void writeToBuffer(const double * buffer );
 	
 	void run();
 
 protected:
-	volatile uint16_t i_buffer[N/5];
-	volatile uint16_t q_buffer[N/5];
-	volatile json sample_json;
+	volatile uint16_t i_buffer[1000];
+	volatile uint16_t q_buffer[1000];
+	json sample_json;
 	std::shared_mutex buffer_mutex;
 	std::condition_variable_any buffer_cv;
 	std::atomic<uint16_t> socket_counter;
+	std::vector<boost::asio::ip::address> connection_queue;
+	std::mutex queue_mutex;
 	std::thread serverThread;
 	std::unique_ptr<SimpleWeb::SocketServer<SimpleWeb::WS>> server; 
 };
