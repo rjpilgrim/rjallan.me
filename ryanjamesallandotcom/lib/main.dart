@@ -11,22 +11,32 @@ import 'package:fft/fft.dart' as fft;
 import 'package:my_complex/my_complex.dart';
 import 'package:loading/loading.dart';
 import 'package:loading/indicator/line_scale_indicator.dart';
+import 'hann1024.dart';
 
 const hann_sum = 552.5000000000002;
 const min_magnitude = 0.2048;
 var myHannWindow = fft.Window(fft.WindowType.HANN);
 
-List<int> iqToMagnitude(Map<String,List<int>> parameterMap) {
-  List<int> returnList = [];
-  List<int> rawISamples = parameterMap["I"];
-  List<int> rawQSamples = parameterMap["Q"];
+List<LinearGradient> iqToMagnitude(Map<String,List<num>> parameterMap) {
+  List<LinearGradient> returnList = [];
+  List<num> rawISamples = parameterMap["I"];
+  List<num> rawQSamples = parameterMap["Q"];
+  print("BEFORE FIRST LOOP");
   for (int i = 0; i < 429; i++) {
-    List<int> iWindow = rawISamples.getRange(i*512, i*512+1024);
-    List<int> qWindow = rawQSamples.getRange(i*512, i*512+1024);
-    var iFilteredWindow = myHannWindow.apply(iWindow);
-    var qFilteredWindow = myHannWindow.apply(qWindow);
+    List<int> rgbList = [];
+    List<num> iWindow = rawISamples.getRange(i*512, i*512+1024);
+    List<num> qWindow = rawQSamples.getRange(i*512, i*512+1024);
+    List<num> iFilteredWindow = List(1024);
+    List<num> qFilteredWindow = List(1024);
+    print("BEFORE WINDOW");
+    for (int j = 0; j<1024; j++) {
+      iFilteredWindow[j] = iWindow[j] * hann1024[j];
+      qFilteredWindow[j] = qWindow[j] * hann1024[j];
+    }
+    print("BEFORE FFT");
     var iFFT = new fft.FFT().Transform(iFilteredWindow);
     var qFFT = new fft.FFT().Transform(qFilteredWindow);
+    print("BEFORE SECOND LOOP");
     for (int j = 512; j<1024; j++) {
       var complexFFT = iFFT[j] + (Complex.cartesian(0.0, 1.0) * qFFT[j]);
       var magnitude = complexFFT.modulus;
@@ -39,8 +49,9 @@ List<int> iqToMagnitude(Map<String,List<int>> parameterMap) {
       if (rgbMagnitude > 255) {
         rgbMagnitude = 255;
       }
-      returnList.add(rgbMagnitude);
+      rgbList.add(rgbMagnitude);
     }
+    print("BEFORE THIRD LOOP");
     for (int j = 0; j<512; j++) {
       var complexFFT = iFFT[j] + (Complex.cartesian(0.0, 1.0) * qFFT[j]);
       var magnitude = complexFFT.modulus;
@@ -53,10 +64,27 @@ List<int> iqToMagnitude(Map<String,List<int>> parameterMap) {
       if (rgbMagnitude > 255) {
         rgbMagnitude = 255;
       }
-      returnList.add(rgbMagnitude);
+      rgbList.add(rgbMagnitude);
     }
+    List<Color> colorList = [];
+    print("BEFORE FOURTH LOOP");
+    for (int j = 0; j<1024; j++) {
+      int value = rgbList[j];
+      colorList.add(Color.fromARGB(255, value, value, value));
+    }
+    var gradient = LinearGradient(  
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight, 
+      colors: colorList
+    );
+    returnList.add(gradient);
   }
   return returnList;
+}
+
+Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
+  //print("TRY DECODE on $responseBody");
+  return jsonDecode(responseBody);
 }
 
 void main() {
@@ -277,24 +305,34 @@ class RealTimeSpectrogram extends StatefulWidget {
 }
 
 class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
-  bool _connected = true;
+  bool _connected = false;
   bool _queued = false;
   int  _queuePosition = 0;
   bool _duplicate = false;
-  bool _served = true;
+  bool _served = false;
   bool _ready = false;
-  List<int> rawISamples = [];
-  List<int> rawQSamples = [];
+  List<num> rawISamples = [];
+  List<num> rawQSamples = [];
   //Number of windows processed each cycle: 429
   //Number of samples removes from samples after processing cycle: 219648
   //Number of samples processed each cycle: 220160
-  List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
+  //List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
+
+  static List<Color> colorList = new List.filled(1024,Color.fromARGB(255, 128, 128, 128));
+
+  static var gradient = LinearGradient(  
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight, 
+    colors: colorList
+  );
+
+  List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
 
   static var url = window.location.hostname;
   var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
 
-  Future<List<int>> _processSamples(List<int> rawISamples, List<int> rawQSamples) async {
-    Map<String,List<int>> myMap = Map();
+  Future<List<LinearGradient>> _processSamples(List<num> rawISamples, List<num> rawQSamples) async {
+    Map<String,List<num>> myMap = Map();
     myMap["I"] = rawISamples;
     myMap["Q"] = rawQSamples;
     return compute(iqToMagnitude, myMap);
@@ -308,7 +346,9 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
               stream: channel.stream,
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
-                  Map<String, dynamic> message = jsonDecode(snapshot.data);
+                  Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, snapshot.data);
+                  messageFuture.then(( Map<String, dynamic> message) {
+                  print("FUTURE RETURN");
                   if (message.containsKey("Served")) {
                     setState(() {
                       _connected = true;
@@ -334,21 +374,24 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
                     setState(() {
                       _connected = true;  
                     });
+                    print("GOT SPECIAL SAMPLE MESSAGE");
                     rawISamples.addAll(message["I Samples"]);
                     rawQSamples.addAll(message["Q Samples"]);
                     if (rawISamples.length >220160) {
-                      Future<List<int>> rgbFuture = _processSamples(rawISamples, rawQSamples);
-                      rgbFuture.then((List<int> rgbMagnitudes) {
-                        displayedMagnitude.removeRange(4410368-439296, 4410368);
+                      Future<List<LinearGradient>> gradientFuture = _processSamples(rawISamples, rawQSamples);
+                      gradientFuture.then((List<LinearGradient> newGradients) {
+                        print("here is new gradient length: ${newGradients.length}");
+                        gradientList.removeRange(4307-429, 4307);
                         rawISamples.removeRange(0, 219648);
                         rawQSamples.removeRange(0,219648);
                         setState(() {
-                          displayedMagnitude.insertAll(0, rgbMagnitudes);
+                          gradientList.insertAll(0, newGradients);
                           _ready = true;
                         });
                       });
                     }
                   }
+                  });
                 }
                 return SizedBox(  
                   width: _width-18,
@@ -356,145 +399,8 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
                   child: !_connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
                        : _duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
                        : _queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $_queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
-                       : _served ? 
-                         Column(children: [
-                           //Center(child: Text("Frequency (MHz)", style: TextStyle(fontSize:18, color: Colors.white))),
-                           /*Row(children: [
-                            Container(
-                              padding: EdgeInsets.only(left: 120),
-                              child: Text("92.6 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
-                            ),
-                            Text("89.7 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
-                            Container(
-                              padding: EdgeInsets.only(right: 120),
-                              child: Text("92.8 MHz", style: TextStyle(fontSize:18, color: Colors.white)),
-                            ),
-                           ],
-                           mainAxisAlignment: MainAxisAlignment.center,
-                           ),*/
-                           Expanded( child:
-                           Row(children: [
-                            /*Container( 
-                            width: 120,
-                            padding: EdgeInsets.fromLTRB(10, 0, 0, 0),
-                            child: Column(children: [
-                             Container(
-                              padding: EdgeInsets.only(right: 5.0),
-                              child: Text("Present", style: TextStyle(fontSize:18, color: Colors.white)),
-                             ),
-                             Expanded(child: Text("") /*Container(
-                              width: 20,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment(0.0, -0.4), 
-                                  colors: [const Color(0xFF000000), const Color(0xFF000000),  const Color(0xFFFFFFFF), const Color(0xFF000000),  const Color(0xFF000000)], 
-                                  stops: [0, 0.4, 0.5, 0.6, 1.0],
-                                  tileMode: TileMode.mirror,
-                                ),
-                                ),
-                              )*/),
-                             Container(
-                              padding: EdgeInsets.only(right: 5.0),
-                              child: Text("Ten Seconds", style: TextStyle(fontSize:18, color: Colors.white)),
-                             ),
-                             Container(
-                              padding: EdgeInsets.only(right: 5.0),
-                              child: Text("Ago", style: TextStyle(fontSize:18, color: Colors.white)),
-                             ),
-                             /*SizedBox( 
-                              width: _width*0.1,
-                              height: _height*0.05,
-                              child: Column(children: [
-                                Text("10 Seconds", style: TextStyle(fontSize:18, color: Colors.white)),
-                                Text("Ago", style: TextStyle(fontSize:18, color: Colors.white)),
-                              ]
-                              )
-                             )*/
-                            
-                            ],
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            ),
-                            ),*/
-                            Container(  
-                              width: 20,
-                            ),
-                            Expanded(child:
-                              Column( 
-                              children: [
-                                Center(child: Text("89.7 MHz", style: TextStyle(fontSize:(_width < 450) ? 12:18, color: Colors.white)),),
-                                Expanded( 
-                                child: Container(
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                    left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                    right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                    bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                                  ),
-                                ),
-                                child: CustomPaint( 
-                                    painter: SamplesPainter(displayedMagnitude),
-                                    child: Center(child: Text(""))
-                                  ) 
-                                
-                                  //Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
-                                )
-                                ),
-                                Container( 
-                                  height: 70,
-                                  padding: EdgeInsets.fromLTRB(0, 10, 0, 10),
-                                  child :Row(children: [
-                                  Text("0 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
-                                  SizedBox(width:5),
-                                  Expanded(child: Container(
-                                    height: 25,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight, 
-                                        colors: [const Color(0xFFFFFFFF), const Color(0xFF000000)], 
-                                        ),
-                                      ),
-                                    )
-                                  ),
-                                  SizedBox(width:5),
-                                  Text("-80 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
-                                  ],
-                                  ),
-                                ),
-                              ]
-                              ),
-                            ),
-                            /*Container( 
-                            width: 120,
-                            padding: EdgeInsets.fromLTRB(10, 0, 10, 0),
-                            child :Column(children: [
-                             Text("0 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
-                             SizedBox(height:5),
-                             Expanded(child: Container(
-                              width: 25,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter, 
-                                  colors: [const Color(0xFFFFFFFF), const Color(0xFF000000)], 
-                                  ),
-                                ),
-                              )
-                             ),
-                             SizedBox(height:5),
-                             Text("-80 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
-                            ],
-                            ),
-                            ),*/
-                            Container( 
-                              width: 20,
-                            )
-                           ],
-                           )
-                           )
-                         ],)
+                       : _served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
+                         SpectrogramWindow(gradientList, _width, _height)
                        : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
                 );
               }
@@ -503,10 +409,85 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
 
 }
 
-class SamplesPainter extends CustomPainter {
-  final List<int> displayedMagnitude;
+class SpectrogramWindow extends StatelessWidget {
+  final List<LinearGradient> gradientList;
+  final double width;
+  final double height;
 
-  SamplesPainter(this.displayedMagnitude);
+  SpectrogramWindow(this.gradientList, this.width, this.height);
+
+  @override
+  Widget build(BuildContext context) {
+    double _width = this.width;
+    double _height = this.height;
+    return Column(children: [
+      Expanded( child:
+      Row(children: [
+      Container(  
+        width: 20,
+      ),
+      Expanded(child:
+        Column( 
+        children: [
+          Center(child: Text("89.7 MHz", style: TextStyle(fontSize:(_width < 450) ? 12:18, color: Colors.white)),),
+          Expanded( 
+          child: Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+              left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+              right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+              bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+            ),
+          ),
+          child: CustomPaint( 
+              painter: SamplesPainter(gradientList),
+              child: Center(child: Text(""))
+            ) 
+          
+            //Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
+          )
+          ),
+          Container( 
+            height: 70,
+            padding: EdgeInsets.fromLTRB(0, 10, 0, 10),
+            child :Row(children: [
+            Text("0 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
+            SizedBox(width:5),
+            Expanded(child: Container(
+              height: 25,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight, 
+                  colors: [const Color(0xFFFFFFFF), const Color(0xFF000000)], 
+                  ),
+                ),
+              )
+            ),
+            SizedBox(width:5),
+            Text("-80 dBFS", style: TextStyle(fontSize:(_width < 450) ? 12 :18, color: Colors.white)),
+            ],
+            ),
+          ),
+        ]
+        ),
+      ),
+      Container( 
+        width: 20,
+      )
+      ],
+      )
+      )
+    ],
+    );  
+  }
+}
+
+class SamplesPainter extends CustomPainter {
+  final List<LinearGradient> gradientList;
+
+  SamplesPainter(this.gradientList);
   
 
   @override
@@ -514,21 +495,16 @@ class SamplesPainter extends CustomPainter {
     for(int i = 0; i < 4307; i++) {
       double myY = (i/4307) * size.height;
       var rect = Rect.fromPoints(Offset(0, myY), Offset(size.width, myY));
-      List<Color> colorList = [];
-      for (int j = 0; j<1024; j++) {
-        int value = displayedMagnitude[i*1024+j];
-        colorList.add(Color.fromARGB(255, value, value, value));
-      }
-      var gradient = LinearGradient(  
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight, 
-        colors: colorList
-      );
+      var gradient = gradientList[i];
       canvas.drawRect(rect,Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(size.height/4307)..style=PaintingStyle.stroke);
     }
+    /*double myY = size.height;
+    var rect = Rect.fromPoints(Offset(0, 0), Offset(size.width, myY));
+    var gradient = gradientList[0];
+    canvas.drawRect(rect,Paint()..shader = gradient.createShader(rect)..style=PaintingStyle.fill);*/
   }
 
   @override
-  bool shouldRepaint(SamplesPainter oldDelegate) => oldDelegate.displayedMagnitude != this.displayedMagnitude;
+  bool shouldRepaint(SamplesPainter oldDelegate) => this.gradientList[0] != oldDelegate.gradientList[0];
 
 }

@@ -15,7 +15,10 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 		server.reset(new WsServer());
         socket_counter.store(0);
 		if (server) {
+            printf("INIT SERVER\n");
 			server->config.port = port;
+            server->config.timeout_request = 30;
+            server->config.thread_pool_size = 3;
 
 			auto &echo = server->endpoint[endpoint];
 
@@ -40,6 +43,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 			echo.on_open = [this](std::shared_ptr<WsServer::Connection> connection) {
 				std::cout << "Server: Opened connection " << connection.get() << " to " << connection->remote_endpoint().address()
 				<< ":" << connection->remote_endpoint().port();
+
                 int status_ = 1;
                 json j;
                 bool queued = false;
@@ -67,25 +71,12 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
                         }
                     }
                     if (counter <= 5 && !queued /*checkQueue(connection->remote_endpoint().address())*/) {
-                        uint16_t connections_from_this_ip = 0;
-                        std::unordered_set<std::shared_ptr<WsServer::Connection>> my_connections;
-                        my_connections = server->get_connections();
-                        for (const auto& elem : my_connections) {
-                            if (connection->remote_endpoint().address() == elem->remote_endpoint().address()) {
-                                connections_from_this_ip++;
-                            }
-                        }
-                        if (connections_from_this_ip > 1) {
-                            j.clear();
-                            j["Served"] = false;
-                            j["Duplicate"] = true;
-                        }
-                        else {
+                        
                             status_ = 0;
                             socket_counter.fetch_add(1);
                             j.clear();
                             j["Duplicate"] = false;
-                        }
+                        
                     }
                     queue_mutex.unlock();
                     connection->send(j.dump(), [&status_](const SimpleWeb::error_code &ec) {
@@ -113,6 +104,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
                         if (status_ != 0) {
                             break;
                         }             
+                        printf("I AM IN SEND LOOP\n");
                         connection->send(sample_json.dump(), [&status_](const SimpleWeb::error_code &ec) {
 								if(ec) {
 									std::cout << "Server: Error sending message. " <<
@@ -140,6 +132,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 
 		}
 	} catch (...) {
+        printf("GOT EXCEPTION\n");
 		server.release();
 	}
 }
@@ -147,16 +140,21 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 void IQWebSocketServer::writeToBuffer(const double * buffer ) {
     {
         std::unique_lock<std::shared_mutex> lock(buffer_mutex);
-        for (int i = 0; i < 1000; i++) {
-            i_buffer[i] = buffer[2*i*5];
-            q_buffer[i] = buffer[2*i*5 + 1];
+        for (int i = buffer_index; i < (buffer_index + 1000); i++) {
+            i_buffer[i] = buffer[2*(i-buffer_index)*5];
+            q_buffer[i] = buffer[2*(i-buffer_index)*5 + 1];
         }
+        buffer_index = buffer_index + 1000;
+    }
+    if (buffer_index == 10000) {
+        printf("NOTIFY NOW\n");
+        buffer_index = 0;
         sample_json.clear();
         sample_json["Served"] = true;
         sample_json["I Samples"] = i_buffer;
         sample_json["Q Samples"] = q_buffer;
+        buffer_cv.notify_all();
     }
-    buffer_cv.notify_all();
 }
 
 IQWebSocketServer::~IQWebSocketServer() {
@@ -166,5 +164,14 @@ IQWebSocketServer::~IQWebSocketServer() {
 }
 
 void IQWebSocketServer::run() {
-	serverThread = std::thread { [&] {server->start();} };
+    std::promise<unsigned short> server_port;
+	serverThread = std::thread { [&] 
+        {
+            server->start([&server_port](unsigned short port) {
+                server_port.set_value(port);
+            }
+            );
+        } 
+    };
+    std::cout << "Server listening on port" << server_port.get_future().get() << std::endl << std::endl;
 }

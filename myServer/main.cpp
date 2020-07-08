@@ -15,7 +15,7 @@
 #include "gnuPlotPipe.h"
 #endif
 
-#define USE_WAV 1
+#define USE_WAV 0
 #define STREAM_ALSA 0
 
 
@@ -532,7 +532,7 @@ int main(int argc, char** argv)
 
         //my_server->writeToBuffer(*reinterpret_cast<double(*)[10000]>(&(bufferFiltered[2 * filter_order + 2])));
 
-        //my_server->writeToBuffer((&(bufferFiltered[2 * filter_order + 2])));
+        my_server->writeToBuffer((&(bufferFiltered[2 * filter_order + 2])));
 
         int samplesFiltered = samplesRead+filter_order + 1;
 

@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <algorithm>
+#include <future>
 
 #include <nlohmann/json.hpp>
 #include <server_ws.hpp>
@@ -35,8 +36,9 @@ public:
 	void run();
 
 protected:
-	volatile uint16_t i_buffer[1000];
-	volatile uint16_t q_buffer[1000];
+	volatile double i_buffer[10000];
+	volatile double q_buffer[10000];
+	unsigned int buffer_index = 0;
 	json sample_json;
 	std::shared_mutex buffer_mutex;
 	std::condition_variable_any buffer_cv;
