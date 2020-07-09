@@ -9,6 +9,10 @@
 #include <chrono>
 #include <algorithm>
 #include <future>
+#include <complex>
+#include <fftw3.h>
+#include <hann8192.hpp>
+#include <math.h>
 
 #include <nlohmann/json.hpp>
 #include <server_ws.hpp>
@@ -36,8 +40,12 @@ public:
 	void run();
 
 protected:
-	volatile double i_buffer[10000];
-	volatile double q_buffer[10000];
+	double i_buffer[13196];
+	double q_buffer[13196];
+	int magnitude_buffer[8196];
+	fftw_complex *fft_in;
+	fftw_complex *fft_out;
+	fftw_plan fft_plan;
 	unsigned int buffer_index = 0;
 	json sample_json;
 	std::shared_mutex buffer_mutex;

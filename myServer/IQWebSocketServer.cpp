@@ -1,5 +1,7 @@
 #include <IQWebSocketServer.hpp>
 
+
+
 using WsServer = SimpleWeb::SocketServer<SimpleWeb::WS>;
 using json = nlohmann::json;
 
@@ -12,6 +14,9 @@ bool IQWebSocketServer::checkQueue(boost::asio::ip::address ip_addr) {
 
 IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) {
 	try {
+        fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 8192);
+        fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 8192);
+        fft_plan = fftw_plan_dft_1d(8192, fft_in, fft_out, FFTW_FORWARD, FFTW_MEASURE);
 		server.reset(new WsServer());
         socket_counter.store(0);
 		if (server) {
@@ -104,7 +109,6 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
                         if (status_ != 0) {
                             break;
                         }             
-                        printf("I AM IN SEND LOOP\n");
                         connection->send(sample_json.dump(), [&status_](const SimpleWeb::error_code &ec) {
 								if(ec) {
 									std::cout << "Server: Error sending message. " <<
@@ -145,20 +149,44 @@ void IQWebSocketServer::writeToBuffer(const double * buffer ) {
             q_buffer[i] = buffer[2*(i-buffer_index)*5 + 1];
         }
         buffer_index = buffer_index + 1000;
+        if (buffer_index >= 8192) {
+            for (int i = 0; i<8192; i++) {
+                fft_in[i][0] = i_buffer[i] * hann8192[i];
+                fft_in[i][1] = q_buffer[i] * hann8192[i];
+            }
+            fftw_execute(fft_plan);
+
+            for (int i = 0; i<8192; i++) {
+                std::complex<double> bin(fft_out[i][0], fft_out[i][1]);
+                double modulus = std::abs(bin);
+                double normalize = modulus/2048/hann8192Sum;
+                if (normalize <= 0) {
+                    normalize = 0.2048;
+                }
+                double dbFSMagnitude = 20 * log10(normalize);
+                if (dbFSMagnitude > 0) {
+                    dbFSMagnitude = 0;
+                }
+                magnitude_buffer[(i+4096)%8192] =abs(round((-80-dbFSMagnitude)*255/-80));
+            }
+
+            memcpy(i_buffer, &(i_buffer[4096]),9100);
+            memcpy(q_buffer, &(q_buffer[4096]),9100);
+            buffer_index = buffer_index - 4098;
+            sample_json.clear();
+            sample_json["Served"] = true;
+            sample_json["Magnitudes"] = magnitude_buffer;
+            
+        }
     }
-    if (buffer_index == 10000) {
-        printf("NOTIFY NOW\n");
-        buffer_index = 0;
-        sample_json.clear();
-        sample_json["Served"] = true;
-        sample_json["I Samples"] = i_buffer;
-        sample_json["Q Samples"] = q_buffer;
-        buffer_cv.notify_all();
-    }
+    buffer_cv.notify_all();
 }
 
 IQWebSocketServer::~IQWebSocketServer() {
 	server->stop();
+    fftw_destroy_plan(fft_plan);
+    fftw_free(fft_in);
+    fftw_free(fft_out);
 	if (serverThread.joinable())
 		serverThread.join();
 }

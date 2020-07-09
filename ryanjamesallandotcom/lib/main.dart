@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'dart:html';
 import 'dart:math';
 import 'dart:core';
@@ -95,6 +96,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
     return MaterialApp(
       //title: 'Flutter Demo',
       /*theme: ThemeData(
@@ -311,14 +313,16 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
   bool _duplicate = false;
   bool _served = false;
   bool _ready = false;
-  List<num> rawISamples = [];
-  List<num> rawQSamples = [];
+  //List<num> rawISamples = [];
+  //List<num> rawQSamples = [];
   //Number of windows processed each cycle: 429
   //Number of samples removes from samples after processing cycle: 219648
   //Number of samples processed each cycle: 220160
   //List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
 
-  static List<Color> colorList = new List.filled(1024,Color.fromARGB(255, 128, 128, 128));
+  List<LinearGradient> gradientBuffer = [];
+
+  static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128));
 
   static var gradient = LinearGradient(  
     begin: Alignment.centerLeft,
@@ -326,7 +330,8 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
     colors: colorList
   );
 
-  List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
+  //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
+  List<LinearGradient> gradientList = new List.filled(538, gradient, growable:true);
 
   static var url = window.location.hostname;
   var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
@@ -370,7 +375,7 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
                       _duplicate = message["Duplicate"];
                     });
                   }
-                  if (message.containsKey("I Samples")) {
+                  /*if (message.containsKey("I Samples")) {
                     setState(() {
                       _connected = true;  
                     });
@@ -389,6 +394,28 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
                           _ready = true;
                         });
                       });
+                    }
+                  }*/
+                  if (message.containsKey("Magnitudes")) {
+                    List<int> rgbMagnitudes = message["Magnitudes"];
+                    List<Color> colorList = [];
+                    for (int j = 0; j<8192; j++) {
+                      int value = rgbMagnitudes[j];
+                      colorList.add(Color.fromARGB(255, value, value, value));
+                    }
+                    var gradient = LinearGradient(  
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight, 
+                      colors: colorList
+                    );
+                    gradientBuffer.add(gradient);
+                    if (gradientBuffer.length > 50) {
+                      setState(() {
+                        _connected = true;
+                        gradientList.removeRange(538-gradientBuffer.length, 538);
+                        gradientList.insertAll(0, gradientBuffer);
+                      });
+                      gradientBuffer = [];
                     }
                   }
                   });
@@ -492,11 +519,12 @@ class SamplesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    for(int i = 0; i < 4307; i++) {
-      double myY = (i/4307) * size.height;
+    //538 rows of overlapping 8192 samples
+    for(int i = 0; i < 538; i++) {
+      double myY = (i/538) * size.height;
       var rect = Rect.fromPoints(Offset(0, myY), Offset(size.width, myY));
       var gradient = gradientList[i];
-      canvas.drawRect(rect,Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(size.height/4307)..style=PaintingStyle.stroke);
+      canvas.drawRect(rect,Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(size.height/538)..style=PaintingStyle.stroke);
     }
     /*double myY = size.height;
     var rect = Rect.fromPoints(Offset(0, 0), Offset(size.width, myY));
