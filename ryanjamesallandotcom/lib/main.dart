@@ -93,28 +93,10 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
     return MaterialApp(
-      //title: 'Flutter Demo',
-      /*theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // cha//nging the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-        // This makes the visual density adapt to the platform that you run
-        // the app on. For desktop platforms, the controls will be smaller and
-        // closer together (more dense) than on mobile platforms.
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),*/
       debugShowCheckedModeBanner: false,
       home: MyHomePage(title: 'Ryan Allan'),
     );
@@ -148,22 +130,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     var  _mediaQuery = MediaQuery.of(context);
     double _width = _mediaQuery.size.width;
     double _height = _mediaQuery.size.height;
-
     return Scaffold(
-      /*appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),*/
       backgroundColor: Colors.black,
       body: Container (
         decoration: const BoxDecoration(
@@ -177,23 +147,7 @@ class _MyHomePageState extends State<MyHomePage> {
         width: _width,
         height: _height,
         child: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //f
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
             SizedBox(height: 10),
@@ -219,10 +173,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 ],
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisAlignment: MainAxisAlignment.center,
-                
               )
             ),
-            
             SizedBox(height: 10),
             
             Container( 
@@ -320,7 +272,7 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
   //Number of samples processed each cycle: 220160
   //List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
 
-  List<LinearGradient> gradientBuffer = [];
+  //List<LinearGradient> gradientBuffer = [];
 
   static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128));
 
@@ -331,8 +283,7 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
   );
 
   //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
-  List<LinearGradient> gradientList = new List.filled(538, gradient, growable:true);
-
+  StreamController<LinearGradient> gradientController = StreamController<LinearGradient>.broadcast();
   static var url = window.location.hostname;
   var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
 
@@ -344,117 +295,111 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
   }
 
   @override
+  void dispose() {
+    gradientController.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     double _width = widget.width;
     double _height = widget.height;
     return StreamBuilder(  
-              stream: channel.stream,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, snapshot.data);
-                  messageFuture.then(( Map<String, dynamic> message) {
-                  print("FUTURE RETURN");
-                  if (message.containsKey("Served")) {
-                    setState(() {
-                      _connected = true;
-                      _queued = false;
-                      _duplicate = false;
-                      _served = message["Served"];
-                    });
-                  }
-                  if (message.containsKey("Queue Position")) {
-                    setState(() {
-                      _connected = true;
-                      _queued = true;
-                      _queuePosition = message["Queue Position"];
-                    });
-                  }
-                  if (message.containsKey("Duplicate")) {
-                    setState(() {
-                      _connected = true;
-                      _duplicate = message["Duplicate"];
-                    });
-                  }
-                  /*if (message.containsKey("I Samples")) {
-                    setState(() {
-                      _connected = true;  
-                    });
-                    print("GOT SPECIAL SAMPLE MESSAGE");
-                    rawISamples.addAll(message["I Samples"]);
-                    rawQSamples.addAll(message["Q Samples"]);
-                    if (rawISamples.length >220160) {
-                      Future<List<LinearGradient>> gradientFuture = _processSamples(rawISamples, rawQSamples);
-                      gradientFuture.then((List<LinearGradient> newGradients) {
-                        print("here is new gradient length: ${newGradients.length}");
-                        gradientList.removeRange(4307-429, 4307);
-                        rawISamples.removeRange(0, 219648);
-                        rawQSamples.removeRange(0,219648);
-                        setState(() {
-                          gradientList.insertAll(0, newGradients);
-                          _ready = true;
-                        });
-                      });
-                    }
-                  }*/
-                  if (message.containsKey("Magnitudes")) {
-                    List<int> rgbMagnitudes = message["Magnitudes"];
-                    List<Color> colorList = [];
-                    for (int j = 0; j<8192; j++) {
-                      int value = rgbMagnitudes[j];
-                      colorList.add(Color.fromARGB(255, value, value, value));
-                    }
-                    var gradient = LinearGradient(  
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight, 
-                      colors: colorList
-                    );
-                    gradientBuffer.add(gradient);
-                    if (gradientBuffer.length > 50) {
-                      setState(() {
-                        _connected = true;
-                        gradientList.removeRange(538-gradientBuffer.length, 538);
-                        gradientList.insertAll(0, gradientBuffer);
-                      });
-                      gradientBuffer = [];
-                    }
-                  }
-                  });
-                }
-                return SizedBox(  
-                  width: _width-18,
-                  height: _height*0.75,
-                  child: !_connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
-                       : _duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
-                       : _queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $_queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
-                       : _served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
-                         SpectrogramWindow(gradientList, _width, _height)
-                       : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
-                );
-              }
+      stream: channel.stream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, snapshot.data);
+          messageFuture.then(( Map<String, dynamic> message) {
+          print("FUTURE RETURN");
+          if (message.containsKey("Served")) {
+            setState(() {
+              _connected = true;
+              _queued = false;
+              _duplicate = false;
+              _served = message["Served"];
+            });
+          }
+          if (message.containsKey("Queue Position")) {
+            setState(() {
+              _connected = true;
+              _queued = true;
+              _queuePosition = message["Queue Position"];
+            });
+          }
+          if (message.containsKey("Duplicate")) {
+            setState(() {
+              _connected = true;
+              _duplicate = message["Duplicate"];
+            });
+          }
+          if (message.containsKey("Magnitudes")) {
+            print("ACCESSING MAGNITUDES");
+            List<int> rgbMagnitudes = message["Magnitudes"];
+            List<Color> colorList = [];
+            print("Creating Color List");
+            for (int j = 0; j<8192; j++) {
+              int value = rgbMagnitudes[j];
+              colorList.add(Color.fromARGB(255, value, value, value));
+            }
+            var gradient = LinearGradient(  
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight, 
+              colors: colorList
             );
+            print("Trying ADD");
+            try {
+              gradientController.add(gradient);
+            } on Exception catch(e) {
+              print('error caught: $e');
+            }
+            print("Done add");
+          }
+          });
+        }
+        return SizedBox(  
+          width: _width-18,
+          height: _height*0.75,
+          child: !_connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
+                : _duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
+                : _queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $_queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
+                : _served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
+                  SpectrogramWindow(gradientStream: gradientController.stream, width: _width, height: _height)
+                : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
+        );
+      }
+    );
   }
-
 }
 
-class SpectrogramWindow extends StatelessWidget {
-  final List<LinearGradient> gradientList;
+class SpectrogramWindow extends StatefulWidget {
+  SpectrogramWindow({Key key, this.gradientStream, this.width, this.height}) : super(key: key);
+  final Stream<LinearGradient> gradientStream;
   final double width;
   final double height;
 
-  SpectrogramWindow(this.gradientList, this.width, this.height);
+  @override
+  _SpectrogramWindowState createState() => _SpectrogramWindowState();
+}
+
+class _SpectrogramWindowState extends State<SpectrogramWindow> {
+  //List<LinearGradient> gradientList = [];
+  static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128));
+
+  static var gradient = LinearGradient(  
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight, 
+    colors: colorList
+  );
+
+  //List<LinearGradient> gradientList = new List.filled(538, gradient, growable:true);
 
   @override
   Widget build(BuildContext context) {
-    double _width = this.width;
-    double _height = this.height;
-    return Column(children: [
-      Expanded( child:
-      Row(children: [
-      Container(  
-        width: 20,
-      ),
-      Expanded(child:
-        Column( 
+    double _width = widget.width;
+    double _height = widget.height;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
+      child:Column( 
         children: [
           Center(child: Text("89.7 MHz", style: TextStyle(fontSize:(_width < 450) ? 12:18, color: Colors.white)),),
           Expanded( 
@@ -467,10 +412,45 @@ class SpectrogramWindow extends StatelessWidget {
               bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
             ),
           ),
-          child: CustomPaint( 
-              painter: SamplesPainter(gradientList),
-              child: Center(child: Text(""))
-            ) 
+          child: LayoutBuilder(  
+            builder: (context, constraints) {
+              return StreamBuilder(  
+                stream: widget.gradientStream,
+                builder: (context, AsyncSnapshot<LinearGradient> snapshot) {
+                  List<Widget> myChildren;
+                  if (snapshot.hasData) {
+                    print("GOT SNAPSHOT");
+                    /*setState(() {
+                      gradientList.removeLast();
+                      gradientList.insert(0, snapshot.data);
+                    });*/
+                    if (myChildren.length > 538) {
+                      myChildren.removeLast();
+                    }
+                    myChildren.insert(0,  
+                      Container(  
+                        height: constraints.maxHeight/538,
+                        decoration: BoxDecoration(
+                          gradient: snapshot.data
+                        )
+                      )
+                    );
+                  }
+                  return Column( 
+                    /*children: gradientList.take(538).map((myGradient) {
+                      return Container(  
+                        height: constraints.maxHeight/538,
+                        decoration: BoxDecoration(
+                          gradient: myGradient
+                        )
+                      );
+                    }).cast<Widget>()*/
+                    children: myChildren
+                  );
+                }
+              );
+            },
+          )
           
             //Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
           )
@@ -498,16 +478,8 @@ class SpectrogramWindow extends StatelessWidget {
             ),
           ),
         ]
-        ),
       ),
-      Container( 
-        width: 20,
-      )
-      ],
-      )
-      )
-    ],
-    );  
+    );
   }
 }
 

@@ -142,6 +142,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 }
 
 void IQWebSocketServer::writeToBuffer(const double * buffer ) {
+    bool send = false;
     {
         std::unique_lock<std::shared_mutex> lock(buffer_mutex);
         for (int i = buffer_index; i < (buffer_index + 1000); i++) {
@@ -172,14 +173,15 @@ void IQWebSocketServer::writeToBuffer(const double * buffer ) {
 
             memcpy(i_buffer, &(i_buffer[4096]),9100);
             memcpy(q_buffer, &(q_buffer[4096]),9100);
-            buffer_index = buffer_index - 4098;
+            buffer_index = buffer_index - 4096;
             sample_json.clear();
             sample_json["Served"] = true;
             sample_json["Magnitudes"] = magnitude_buffer;
-            
+            send = true;
         }
     }
-    buffer_cv.notify_all();
+    if (send)
+        buffer_cv.notify_all();
 }
 
 IQWebSocketServer::~IQWebSocketServer() {
