@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:html';
 import 'dart:math';
+import 'dart:ui' as dart_ui;
 import 'dart:core';
 import 'dart:js' as js;
 import 'package:web_socket_channel/html.dart';
@@ -12,9 +13,10 @@ import 'package:fft/fft.dart' as fft;
 import 'package:my_complex/my_complex.dart';
 import 'package:loading/loading.dart';
 import 'package:loading/indicator/line_scale_indicator.dart';
-import 'hann1024.dart';
+import 'package:tuple/tuple.dart';
+//import 'hann1024.dart';
 
-const hann_sum = 552.5000000000002;
+/*const hann_sum = 552.5000000000002;
 const min_magnitude = 0.2048;
 var myHannWindow = fft.Window(fft.WindowType.HANN);
 
@@ -82,11 +84,43 @@ List<LinearGradient> iqToMagnitude(Map<String,List<num>> parameterMap) {
   }
   return returnList;
 }
-
+*/
 Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
   //print("TRY DECODE on $responseBody");
   return jsonDecode(responseBody);
 }
+
+LinearGradient gradientIsolate(List<dynamic> rgbMagnitudes) {
+  return LinearGradient(  
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight, 
+              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
+            );
+}
+
+List<Tuple2<Rect, Paint>> canvasIsolate(Tuple2<List<LinearGradient>, Size> parameters) {
+  List<Tuple2<Rect, Paint>> returnList = [];
+  for(int i = 0; i < 538; i++) {
+      double myY = (i/538) * parameters.item2.height;
+      var rect = Rect.fromPoints(Offset(0, myY), Offset(parameters.item2.width, myY));
+      var gradient = parameters.item1[i];
+      var paint = Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(parameters.item2.height/538)..style=PaintingStyle.stroke;
+      returnList.add(Tuple2<Rect,Paint>(rect, paint));
+  }
+  return returnList;
+}
+
+/*Canvas canvasIsolate(Tuple2<List<LinearGradient>, Size> parameters) {
+  Canvas returnCanvas = Canvas(dart_ui.PictureRecorder());
+  for(int i = 0; i < 538; i++) {
+      double myY = (i/538) * parameters.item2.height;
+      var rect = Rect.fromPoints(Offset(0, myY), Offset(parameters.item2.width, myY));
+      var gradient = parameters.item1[i];
+      var paint = Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(parameters.item2.height/538)..style=PaintingStyle.stroke;
+      returnCanvas.drawRect(rect, paint);
+  }
+  return returnCanvas;
+}*/
 
 void main() {
   runApp(MyApp());
@@ -259,11 +293,11 @@ class RealTimeSpectrogram extends StatefulWidget {
 }
 
 class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
-  bool _connected = false;
+  bool _connected = true;
   bool _queued = false;
   int  _queuePosition = 0;
   bool _duplicate = false;
-  bool _served = false;
+  bool _served = true;
   bool _ready = false;
   //List<num> rawISamples = [];
   //List<num> rawQSamples = [];
@@ -274,25 +308,18 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
 
   //List<LinearGradient> gradientBuffer = [];
 
-  static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128));
-
-  static var gradient = LinearGradient(  
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight, 
-    colors: colorList
-  );
 
   //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
   StreamController<LinearGradient> gradientController = StreamController<LinearGradient>.broadcast();
   static var url = window.location.hostname;
   var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
 
-  Future<List<LinearGradient>> _processSamples(List<num> rawISamples, List<num> rawQSamples) async {
+  /*Future<List<LinearGradient>> _processSamples(List<num> rawISamples, List<num> rawQSamples) async {
     Map<String,List<num>> myMap = Map();
     myMap["I"] = rawISamples;
     myMap["Q"] = rawQSamples;
     return compute(iqToMagnitude, myMap);
-  }
+  }*/
 
   @override
   void dispose() {
@@ -301,15 +328,10 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    double _width = widget.width;
-    double _height = widget.height;
-    return StreamBuilder(  
-      stream: channel.stream,
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, snapshot.data);
-          messageFuture.then(( Map<String, dynamic> message) {
+  void initState() {
+    channel.stream.listen((data) {
+      Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, data);
+      messageFuture.then(( Map<String, dynamic> message) {
           print("FUTURE RETURN");
           if (message.containsKey("Served")) {
             setState(() {
@@ -333,30 +355,33 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
             });
           }
           if (message.containsKey("Magnitudes")) {
-            print("ACCESSING MAGNITUDES");
-            List<int> rgbMagnitudes = message["Magnitudes"];
-            List<Color> colorList = [];
-            print("Creating Color List");
-            for (int j = 0; j<8192; j++) {
-              int value = rgbMagnitudes[j];
-              colorList.add(Color.fromARGB(255, value, value, value));
-            }
-            var gradient = LinearGradient(  
+            List<dynamic> rgbMagnitudes = message["Magnitudes"];
+            Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
+            gradientFuture.then((gradient) {
+            /*var gradient = LinearGradient(  
               begin: Alignment.centerLeft,
               end: Alignment.centerRight, 
-              colors: colorList
-            );
-            print("Trying ADD");
+              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
+            );*/
             try {
               gradientController.add(gradient);
             } on Exception catch(e) {
               print('error caught: $e');
             }
-            print("Done add");
+            });
           }
-          });
-        }
-        return SizedBox(  
+      }
+      );
+    });
+    super.initState();
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    double _width = widget.width;
+    double _height = widget.height;
+    return SizedBox(  
           width: _width-18,
           height: _height*0.75,
           child: !_connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
@@ -366,8 +391,7 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
                   SpectrogramWindow(gradientStream: gradientController.stream, width: _width, height: _height)
                 : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
         );
-      }
-    );
+    
   }
 }
 
@@ -382,26 +406,94 @@ class SpectrogramWindow extends StatefulWidget {
 }
 
 class _SpectrogramWindowState extends State<SpectrogramWindow> {
-  //List<LinearGradient> gradientList = [];
-  static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128));
+  //static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 0, 0, 0), growable: true);
+  static List<Color> altColorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128), growable: true);
 
-  static var gradient = LinearGradient(  
+  static var initGradient = LinearGradient(  
     begin: Alignment.centerLeft,
     end: Alignment.centerRight, 
-    colors: colorList
+    colors: altColorList
   );
 
+  //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
+  List<LinearGradient> gradientList = new List.filled(538, initGradient, growable:true);
+
+  List<Widget> myChildren =   new List.filled(538,Expanded(child:Container(
+          decoration: BoxDecoration(
+            gradient: initGradient
+          )
+        ))
+        , growable:true
+        );
   //List<LinearGradient> gradientList = new List.filled(538, gradient, growable:true);
+  
+  int _repaintCounter;
+  bool _repaint = false;
+
+  SamplesPainter mySamplesPainter;
+
+  void putContainer(Container newContainer) {
+    setState(() {
+      myChildren.insert(0, Expanded(child:newContainer));
+      myChildren.removeLast();
+    });
+  }
+  void putGradient(LinearGradient myGradient) {
+    
+    gradientList.insert(0, myGradient);
+    gradientList.removeLast();
+    _repaintCounter++;
+    
+      if (_repaintCounter > 200) {
+        setState(() {
+        _repaintCounter = 0;
+        _repaint = true;
+        });
+      }
+      else if (_repaintCounter == 0) {
+        setState(() {
+          _repaintCounter = 0;
+          _repaint = false;
+        });
+      }
+      else {
+        _repaint = false;
+      }    
+
+  }
+
+  @override
+  void initState() {
+    widget.gradientStream.listen((data) {
+      /*putContainer(
+        Container( 
+          decoration: BoxDecoration(
+            gradient: data
+          )
+        )
+      );*/
+      putGradient(data);
+    }
+    );
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     double _width = widget.width;
     double _height = widget.height;
+    
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
       child:Column( 
         children: [
-          Center(child: Text("89.7 MHz", style: TextStyle(fontSize:(_width < 450) ? 12:18, color: Colors.white)),),
+          Container( 
+            height: 30,
+            child:CustomPaint( 
+              painter: TickPainter((_width < 450) ? true:false),
+              child: Center(child: Text(""))
+            ), 
+          ),
           Expanded( 
           child: Container(
           decoration: const BoxDecoration(
@@ -412,47 +504,17 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
               bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
             ),
           ),
-          child: LayoutBuilder(  
-            builder: (context, constraints) {
-              return StreamBuilder(  
-                stream: widget.gradientStream,
-                builder: (context, AsyncSnapshot<LinearGradient> snapshot) {
-                  List<Widget> myChildren;
-                  if (snapshot.hasData) {
-                    print("GOT SNAPSHOT");
-                    /*setState(() {
-                      gradientList.removeLast();
-                      gradientList.insert(0, snapshot.data);
-                    });*/
-                    if (myChildren.length > 538) {
-                      myChildren.removeLast();
-                    }
-                    myChildren.insert(0,  
-                      Container(  
-                        height: constraints.maxHeight/538,
-                        decoration: BoxDecoration(
-                          gradient: snapshot.data
-                        )
-                      )
-                    );
-                  }
-                  return Column( 
-                    /*children: gradientList.take(538).map((myGradient) {
-                      return Container(  
-                        height: constraints.maxHeight/538,
-                        decoration: BoxDecoration(
-                          gradient: myGradient
-                        )
-                      );
-                    }).cast<Widget>()*/
-                    children: myChildren
-                  );
-                }
-              );
-            },
-          )
           
-            //Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
+          child:
+            CustomPaint( 
+              painter: SamplesPainter(gradientList, _repaint),
+              child: Container( 
+                child: CustomPaint( 
+                  painter: TimePainter((_width < 450) ? true:false),
+                  child: Center(child: Text(""))
+                )
+              )
+            ) 
           )
           ),
           Container( 
@@ -464,6 +526,7 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
             Expanded(child: Container(
               height: 25,
               decoration: BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.circular(5)),
                 gradient: LinearGradient(
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight, 
@@ -485,26 +548,150 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
 
 class SamplesPainter extends CustomPainter {
   final List<LinearGradient> gradientList;
+  final bool repaint;
 
-  SamplesPainter(this.gradientList);
-  
+  SamplesPainter(this.gradientList, this.repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
-    //538 rows of overlapping 8192 samples
+
+    
+    //538 rows of 8192 bins
     for(int i = 0; i < 538; i++) {
       double myY = (i/538) * size.height;
       var rect = Rect.fromPoints(Offset(0, myY), Offset(size.width, myY));
       var gradient = gradientList[i];
       canvas.drawRect(rect,Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(size.height/538)..style=PaintingStyle.stroke);
     }
-    /*double myY = size.height;
-    var rect = Rect.fromPoints(Offset(0, 0), Offset(size.width, myY));
-    var gradient = gradientList[0];
-    canvas.drawRect(rect,Paint()..shader = gradient.createShader(rect)..style=PaintingStyle.fill);*/
+    /*print("Painting cnavs");
+     Future<List<Tuple2<Rect,Paint>>> canvasFuture = compute(canvasIsolate, Tuple2<List<LinearGradient>,Size>(gradientList, size));
+    canvasFuture.then((canvasList) {
+      print("painting future canvas");
+      for(int i = 0; i < 538; i++) {
+        canvas.drawRect(canvasList[i].item1, canvasList[i].item2);
+      }
+    });*/
+    /*Future<Canvas> canvasFuture =compute(canvasIsolate, Tuple2<List<LinearGradient>,Size>(gradientList, size));
+    canvasFuture.then((myCanvas) {
+      canvas = myCanvas;
+    });*/
   }
 
   @override
-  bool shouldRepaint(SamplesPainter oldDelegate) => this.gradientList[0] != oldDelegate.gradientList[0];
+  bool shouldRepaint(SamplesPainter oldDelegate) => repaint;
+
+}
+
+class TimePainter extends CustomPainter {
+
+  final bool smallText;
+
+  TimePainter(this.smallText);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    //538 rows of 8192 bins
+    var textStyle = TextStyle(color: Colors.white, fontSize: smallText ? 12 : 18);
+
+    var firstTextSpan = TextSpan(  
+      text: "Most Recent",
+      style: textStyle
+    );
+    var firstTextPainter = TextPainter(  
+      text: firstTextSpan,
+      textDirection: TextDirection.ltr
+    );
+    firstTextPainter.layout(  
+      minWidth: 0,
+      maxWidth: size.width*0.33
+    );
+    firstTextPainter.paint(canvas, Offset(2,2));
+
+    var lastTextSpan = TextSpan(  
+      text: "10s Before",
+      style: textStyle
+    );
+    var lastTextPainter = TextPainter(  
+      text: lastTextSpan,
+      textDirection: TextDirection.ltr
+    );
+    lastTextPainter.layout(  
+      minWidth: 0,
+      maxWidth: size.width*0.33
+    );
+    lastTextPainter.paint(canvas, Offset(3, size.height - 3- lastTextPainter.height));
+  }
+
+  @override
+  bool shouldRepaint(TimePainter oldDelegate) =>  (this.smallText != oldDelegate.smallText);
+
+}
+
+class TickPainter extends CustomPainter {
+  final bool smallText;
+
+  TickPainter(this.smallText);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    var textStyle = TextStyle(color: Colors.white, fontSize: smallText ? 12 : 18);
+
+    var firstTickRect = Rect.fromPoints(Offset(0, size.height-8), Offset(4, size.height));
+    canvas.drawRect(firstTickRect,Paint()..color = Colors.white);
+    var secondTickRect = Rect.fromPoints(Offset(size.width*0.25 -2, size.height-8), Offset(size.width*0.25 +2, size.height));
+    canvas.drawRect(secondTickRect,Paint()..color = Colors.white);
+    var middleTickRect = Rect.fromPoints(Offset(size.width*0.5 -2, size.height-8), Offset(size.width*0.5 +2, size.height));
+    canvas.drawRect(middleTickRect,Paint()..color = Colors.white);
+    var fourthTickRect = Rect.fromPoints(Offset(size.width*0.75 -2, size.height-8), Offset(size.width*0.75 +2, size.height));
+    canvas.drawRect(fourthTickRect,Paint()..color = Colors.white);
+    var lastTickRect = Rect.fromPoints(Offset(size.width-4, size.height-8), Offset(size.width, size.height));
+    canvas.drawRect(lastTickRect,Paint()..color = Colors.white);
+
+    var firstTextSpan = TextSpan(  
+      text: "89.59 MHz",
+      style: textStyle
+    );
+    var firstTextPainter = TextPainter(  
+      text: firstTextSpan,
+      textDirection: TextDirection.ltr
+    );
+    firstTextPainter.layout(  
+      minWidth: 0,
+      maxWidth: size.width*0.33
+    );
+    firstTextPainter.paint(canvas, Offset(0, size.height - 8 - firstTextPainter.height));
+
+    var middleTextSpan = TextSpan(  
+      text: "89.7 MHz",
+      style: textStyle
+    );
+    var middleTextPainter = TextPainter(  
+      text: middleTextSpan,
+      textDirection: TextDirection.ltr
+    );
+    middleTextPainter.layout(  
+      minWidth: 0,
+      maxWidth: size.width*0.33
+    );
+    middleTextPainter.paint(canvas, Offset(size.width * 0.5 - middleTextPainter.size.width*0.5, size.height - 8 - middleTextPainter.height ));
+
+    var lastTextSpan = TextSpan(  
+      text: "89.81 MHz",
+      style: textStyle
+    );
+    var lastTextPainter = TextPainter(  
+      text: lastTextSpan,
+      textDirection: TextDirection.ltr
+    );
+    lastTextPainter.layout(  
+      minWidth: 0,
+      maxWidth: size.width*0.33
+    );
+    lastTextPainter.paint(canvas, Offset(size.width - lastTextPainter.size.width, size.height - 8 - lastTextPainter.height ));
+
+  }
+
+  @override
+  bool shouldRepaint(TickPainter oldDelegate) => this.smallText != oldDelegate.smallText;
 
 }

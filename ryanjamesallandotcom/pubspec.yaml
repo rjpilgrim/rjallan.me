@@ -28,6 +28,7 @@ dependencies:
   fft: ^0.2.0
   my_complex: ">=0.1.0 <1.0.0"
   loading: ^1.0.2
+  tuple: ^1.0.3
 
 
   # The following adds the Cupertino Icons font to your application.

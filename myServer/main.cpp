@@ -16,7 +16,7 @@
 #endif
 
 #define USE_WAV 0
-#define STREAM_ALSA 0
+#define STREAM_ALSA 1
 
 
 #define MAX_PCM 32767
@@ -417,7 +417,7 @@ int main(int argc, char** argv)
 	snd_pcm_hw_params_t *alsa_hwparams;
 	snd_pcm_sw_params_t *alsa_swparams;
 	int method = 0;
-	unsigned short *alsa_samples;
+	short *alsa_samples;
 	snd_pcm_channel_area_t *alsa_areas;
 
 	snd_pcm_hw_params_alloca(&alsa_hwparams);

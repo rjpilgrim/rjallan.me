@@ -153,7 +153,7 @@ void IQWebSocketServer::writeToBuffer(const double * buffer ) {
         if (buffer_index >= 8192) {
             for (int i = 0; i<8192; i++) {
                 fft_in[i][0] = i_buffer[i] * hann8192[i];
-                fft_in[i][1] = q_buffer[i] * hann8192[i];
+                fft_in[i][1] = 1 * q_buffer[i] * hann8192[i];
             }
             fftw_execute(fft_plan);
 
