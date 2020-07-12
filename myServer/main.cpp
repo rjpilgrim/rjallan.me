@@ -16,7 +16,7 @@
 #endif
 
 #define USE_WAV 0
-#define STREAM_ALSA 1
+#define STREAM_ALSA 0
 
 
 #define MAX_PCM 32767
@@ -504,7 +504,7 @@ int main(int argc, char** argv)
         else if (chrono::high_resolution_clock::now() - t1 < chrono::seconds(3)) {
             memcpy(buffer, &(buffer[10000]),2*(4 * filter_order + 2));
         }
-        else {
+        else {  
 #if USE_WAV
         count++;
         my_avg = 0;
