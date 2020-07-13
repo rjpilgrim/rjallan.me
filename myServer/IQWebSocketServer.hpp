@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <iomanip>
 #include <zlib.h>
+#include <jpeglib.h>
 
 #include <nlohmann/json.hpp>
 #include <server_ws.hpp>
@@ -66,15 +67,17 @@ protected:
 	std::time_t file_times[4];
 	std::string file_names[4];
 	std::atomic<bool> file_atomics[4];
+	/*
 	unsigned long file_crcs[4];
 	uint32_t file_lengths[4];
 	z_stream file_deflates[4];
+	*/
+	struct jpeg_compress_struct jpeg_structs[4];
+	struct jpeg_error_mgr jpeg_errors[4];
 	int file_rows[4];
 	int file_name_index = 0;
 	bool runImageThread = false;
 	std::unique_ptr<SimpleWeb::SocketServer<SimpleWeb::WS>> server; 
-
-	bool closed_file = false;
 
 	void openFile();
 	void writeToFiles();

@@ -176,7 +176,7 @@ unsigned long update_crc(unsigned long crc, const unsigned char *buf,
 }
 
 /* Return the CRC of the bytes buf[0..len-1]. */
-unsigned long crc(unsigned char *buf, int len)
+unsigned long crc(const unsigned char *buf, int len)
 {
     return update_crc(0xffffffffL, buf, len) ^ 0xffffffffL;
 }
@@ -212,7 +212,8 @@ void IQWebSocketServer::writeToBuffer(const double * buffer ) {
 
         {
             std::unique_lock<std::mutex> lock(image_mutex);
-            memcpy(&(magnitude_buffer[1]), local_buffer, 1024);
+            //memcpy(&(magnitude_buffer[1]), local_buffer, 1024); leave room for filter byte in buffer for png
+            memcpy(magnitude_buffer, local_buffer, 1024);
         }
         image_cv.notify_all();
 
@@ -229,11 +230,14 @@ const uint8_t pngHeader[] = {0x89, 0x50 , 0x4E , 0x47
                               
 const uint8_t pngParam[]   =  {0x49 , 0x48 , 0x44 , 0x52
                             , 0x00, 0x00, 0x04, 0x00 //width
-                            , 0x00, 0x00, 0x08, 0x69 //height
+                            , 0x00, 0x00, 0x04, 0x00 //height
+ //                           , 0x00, 0x00, 0x08, 0x69 //height
                             , 0x08, 0x00, 0x00, 0x00, 0x00}; //simple 8 bit grayscale
                             
                             
-const uint8_t pngParamCrc[] = { 0xB2, 0x2D, 0x40, 0xB9}; //crc32 0xB22D40B9
+const uint8_t pngParamCrc[] =   { 0x5A, 0x76, 0x74, 0x5F};  //crc32 5A76745F
+
+                                //{ 0xB2, 0x2D, 0x40, 0xB9}; //crc32 0xB22D40B9
 
 const uint8_t pngDataLength[] = {0x00, 0x21, 0xA4, 0x00};
 const uint8_t pngIDAT[] = {0x49 ,0x44 ,0x41 ,0x54};
@@ -255,7 +259,7 @@ IQWebSocketServer::~IQWebSocketServer() {
     if (imageThread.joinable())
         imageThread.join();
 }
-
+/*PNG OPEN FILE
 void IQWebSocketServer::openFile() {
     int i = 0;
     for (i; i < 4; i++) {
@@ -289,11 +293,57 @@ void IQWebSocketServer::openFile() {
         if (file_name_index >= 40) {
             file_name_index = 0;
         }
-        deflateInit2(&(file_deflates[i]), Z_BEST_COMPRESSION, Z_DEFLATED, 15, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY); 
+        deflateInit2(&(file_deflates[i]), Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY); 
         file_atomics[i].store(true);
     }
 }
+*/
 
+void IQWebSocketServer::openFile() {
+    int i = 0;
+    for (i; i < 4; i++) {
+        if (file_pointers[i] == nullptr) {
+            int index = i == 0 ? 3 : i - 1;
+            if (first_file && file_rows[index] < 538 ) {
+            }
+            else  {
+                first_file = true;
+                break;
+            }
+        }
+    }   
+    if (i != 4) {
+        std::string file_name = std::to_string(file_name_index);
+        file_name.append(".jpg");
+        file_names[i] = file_name;
+        file_times[i] = std::time(nullptr);
+        file_rows[i] = 0;
+        std::string full_path = "/var/www/html/";
+        full_path.append(file_name);
+        file_pointers[i] = fopen(full_path.c_str(), "wb");
+
+        jpeg_structs[i].err = jpeg_std_error(&(jpeg_errors[i]));
+        jpeg_create_compress(&(jpeg_structs[i]));
+
+        jpeg_stdio_dest(&(jpeg_structs[i]), file_pointers[i]);
+
+        jpeg_structs[i].image_width = 1024;
+        jpeg_structs[i].image_height = 2153;
+        jpeg_structs[i].input_components = 1;	
+        jpeg_structs[i].in_color_space = JCS_GRAYSCALE;
+
+        jpeg_set_defaults(&(jpeg_structs[i]));
+        jpeg_set_quality(&(jpeg_structs[i]), 60, TRUE /* limit to baseline-JPEG values */);
+        jpeg_start_compress(&(jpeg_structs[i]), TRUE);
+
+        file_name_index++;
+        if (file_name_index >= 40) {
+            file_name_index = 0;
+        }
+        file_atomics[i].store(true);
+    }
+}
+/*PNG CLOSE FILE
 void IQWebSocketServer::closeFile() {
     int i = 0;
     for (i; i < 4; i++) {
@@ -327,6 +377,35 @@ void IQWebSocketServer::closeFile() {
         socket_cv.notify_all();
     
     }
+}*/
+
+void IQWebSocketServer::closeFile() {
+    int i = 0;
+    for (i; i < 4; i++) {
+        if (file_pointers[i] != nullptr ) {
+            if (file_rows[i] >= 2153) 
+                break;
+        }
+    }
+    if (i != 4) {
+        file_atomics[i].store(false);
+        jpeg_finish_compress(&(jpeg_structs[i]));
+        fclose(file_pointers[i]);
+        jpeg_destroy_compress(&(jpeg_structs[i]));
+        file_pointers[i] = nullptr;
+        file_rows[i] = 0;
+        {
+            std::unique_lock<std::shared_mutex> lock(socket_mutex);
+            sample_json.clear();
+            sample_json["Image Name"] = file_names[i];
+            std::ostringstream oss;
+            oss << std::put_time(std::localtime(&(file_times[i])), "%d-%m-%Y %H-%M-%S");
+            auto str = oss.str();
+            sample_json["Image Time"] = str;
+        }
+        socket_cv.notify_all();
+    
+    }
 }
 
 const uint8_t filter_byte = 0;
@@ -344,16 +423,21 @@ void IQWebSocketServer::run() {
     };
     std::cout << "Server listening on port" << server_port.get_future().get() << std::endl << std::endl;
     runImageThread = true;
+    /*
+    unsigned long my_crc =  crc(pngParam, 17);
+    printf("HEre is my crc: %lu\n", my_crc);*/
 
     imageThread = std::thread{ [&]
     {
+        JSAMPROW row_pointer[1];
+        /*PNG INIT
         uint8_t deflate_buffer[1025];
-
         for (int i = 0; i < 4; i++) {
             file_deflates[i].zalloc = Z_NULL;
             file_deflates[i].zfree = Z_NULL;
             file_deflates[i].opaque = Z_NULL;  
         }
+        */
         
         while(runImageThread) {  
         //IMAGE DIMENSIONS: 1024 * 2153 = 2204672
@@ -362,8 +446,15 @@ void IQWebSocketServer::run() {
             std::unique_lock<std::mutex> lock(image_mutex);
             image_cv.wait(lock);
             openFile();
-            magnitude_buffer[0] = filter_byte;          
-            //deflateEnd(&strm);
+            row_pointer[0] = magnitude_buffer;
+            for (int i = 0; i < 4; i++) {
+                if (file_atomics[i].load()) {
+                    file_rows[i]++;
+                    (void) jpeg_write_scanlines(&(jpeg_structs[i]), row_pointer, 1);
+                }
+            }
+            /*PNG WRITE LOOP
+            magnitude_buffer[0] = filter_byte; 
             for (int i = 0; i < 4; i++) {
                 if (file_atomics[i].load()) {
                     file_deflates[i].avail_in = 1025;
@@ -372,7 +463,7 @@ void IQWebSocketServer::run() {
                     do {
                         file_deflates[i].avail_out = 1025;
                         file_deflates[i].next_out = deflate_buffer;
-                        if (file_rows[i] >=2153) {
+                        if (file_rows[i] >=1024) {
                             deflate(&(file_deflates[i]), Z_FINISH);
                         }
                         else
@@ -384,6 +475,7 @@ void IQWebSocketServer::run() {
                     } while (file_deflates[i].avail_out == 0);
                 }
             }
+            */
             closeFile();
         }
         }    
