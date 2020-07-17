@@ -133,4 +133,4 @@ ffmpeg -f alsa -ac 1 -ar 44100 -i hw:2,0,0 \
 
 Run this command in the directory /var/media/hls/ so that nginx will see it.
 
-You may also need to change what audio device the server writes to and which one ffpmeg is listening on, depending on what label your mahine gives to the loopback devices. In my case, the loopback is device 2. This is specified on line 51 in main.cpp. 
+You may also need to change what audio device the server writes to and which one ffpmeg is listening on, depending on what label your mahine gives to the loopback devices. In my case, the loopback devices are under card 2. This is specified on line 51 in main.cpp. 
