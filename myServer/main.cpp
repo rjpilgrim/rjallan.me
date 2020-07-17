@@ -16,7 +16,7 @@
 #endif
 
 #define USE_WAV 0
-#define STREAM_ALSA 0
+#define STREAM_ALSA 1
 
 
 #define MAX_PCM 32767

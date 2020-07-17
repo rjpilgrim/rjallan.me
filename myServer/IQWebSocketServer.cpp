@@ -55,7 +55,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
                 while ((status_ == 1)) {
                     queue_mutex.lock();
                     uint16_t counter = socket_counter.load();
-                    if (counter > 5) {
+                    if (counter > 21) {
                         j.clear();
                         j["Served"] = false;                     
                         if (!queued) {
@@ -75,7 +75,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
                             queued = false;
                         }
                     }
-                    if (counter <= 5 && !queued /*checkQueue(connection->remote_endpoint().address())*/) {
+                    if (counter <= 21 && !queued /*checkQueue(connection->remote_endpoint().address())*/) {
                         
                             status_ = 0;
                             socket_counter.fetch_add(1);
@@ -394,16 +394,37 @@ void IQWebSocketServer::closeFile() {
         jpeg_destroy_compress(&(jpeg_structs[i]));
         file_pointers[i] = nullptr;
         file_rows[i] = 0;
+       // std::thread fileThread = std::thread { [this, i, file_names, file_times, &sample_json]
+       // {
+        std::string old_file_name = file_names[i];
+        old_file_name.append(".old");
+        std::string full_path = "/var/www/html/";
+        std::string full_path_old = "/var/www/html/";
+        full_path.append(file_names[i]);
+        full_path_old.append(old_file_name);
+        std::string mv_call = std::string("mv ") + full_path + std::string(" ") + full_path_old;
+        std::string flip_call = std::string("jpegtran -flip vertical -outfile ") + full_path + std::string(" ") + full_path_old;
+        std::string rm_call = std::string("rm ") + full_path_old;
+        std::future<int> f2 = std::async(std::launch::async, [mv_call, flip_call, rm_call]{ system(mv_call.c_str()); system(flip_call.c_str()); return system(rm_call.c_str()); });
+        //printf("WAITING\n");
+        f2.wait();
+        //printf("DONE WAITING\n");
         {
             std::unique_lock<std::shared_mutex> lock(socket_mutex);
             sample_json.clear();
             sample_json["Image Name"] = file_names[i];
             std::ostringstream oss;
-            oss << std::put_time(std::localtime(&(file_times[i])), "%d-%m-%Y %H-%M-%S");
+            oss << std::put_time(std::localtime(&(file_times[i])), "%Y-%m-%d %H:%M:%S");
             auto str = oss.str();
+            //printf("HEre is date time: %s\n", str.c_str());
             sample_json["Image Time"] = str;
+            sample_json["Served"] = true;
         }
+        //printf("FLIPPED FILE\n");
         socket_cv.notify_all();
+      //  }
+      //  };
+      //  fileThread.detach();
     
     }
 }

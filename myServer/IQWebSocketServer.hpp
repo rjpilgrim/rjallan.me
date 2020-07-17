@@ -18,6 +18,7 @@
 #include <iomanip>
 #include <zlib.h>
 #include <jpeglib.h>
+#include <stdlib.h>
 
 #include <nlohmann/json.hpp>
 #include <server_ws.hpp>

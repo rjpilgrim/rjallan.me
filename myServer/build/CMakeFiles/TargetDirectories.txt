@@ -1,5 +1,0 @@
-/home/pilgrim/myServer/build/CMakeFiles/rebuild_cache.dir
-/home/pilgrim/myServer/build/CMakeFiles/main.dir
-/home/pilgrim/myServer/build/CMakeFiles/edit_cache.dir
-/home/pilgrim/myServer/build/Simple-WebSocket-Server/CMakeFiles/rebuild_cache.dir
-/home/pilgrim/myServer/build/Simple-WebSocket-Server/CMakeFiles/edit_cache.dir

@@ -1,19 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'dart:html';
+import 'package:http/http.dart' as http;
 import 'dart:math';
 import 'dart:ui' as dart_ui;
+//import 'dart:typed_data';
 import 'dart:core';
 import 'dart:js' as js;
 import 'package:web_socket_channel/html.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'package:fft/fft.dart' as fft;
-import 'package:my_complex/my_complex.dart';
+//import 'package:fft/fft.dart' as fft;
+//import 'package:my_complex/my_complex.dart';
 import 'package:loading/loading.dart';
 import 'package:loading/indicator/line_scale_indicator.dart';
 import 'package:tuple/tuple.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 //import 'hann1024.dart';
 
 /*const hann_sum = 552.5000000000002;
@@ -90,7 +96,7 @@ Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
   return jsonDecode(responseBody);
 }
 
-LinearGradient gradientIsolate(List<dynamic> rgbMagnitudes) {
+/*LinearGradient gradientIsolate(List<dynamic> rgbMagnitudes) {
   return LinearGradient(  
               begin: Alignment.centerLeft,
               end: Alignment.centerRight, 
@@ -108,19 +114,15 @@ List<Tuple2<Rect, Paint>> canvasIsolate(Tuple2<List<LinearGradient>, Size> param
       returnList.add(Tuple2<Rect,Paint>(rect, paint));
   }
   return returnList;
+}*/
+
+Future<dart_ui.Image> fetchImage(String url) async {
+  var response = await http.get(url);
+  var codec = await dart_ui.instantiateImageCodec( response.bodyBytes); //Uint8List
+  var frame = await codec.getNextFrame();
+  return frame.image;
 }
 
-/*Canvas canvasIsolate(Tuple2<List<LinearGradient>, Size> parameters) {
-  Canvas returnCanvas = Canvas(dart_ui.PictureRecorder());
-  for(int i = 0; i < 538; i++) {
-      double myY = (i/538) * parameters.item2.height;
-      var rect = Rect.fromPoints(Offset(0, myY), Offset(parameters.item2.width, myY));
-      var gradient = parameters.item1[i];
-      var paint = Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(parameters.item2.height/538)..style=PaintingStyle.stroke;
-      returnCanvas.drawRect(rect, paint);
-  }
-  return returnCanvas;
-}*/
 
 void main() {
   runApp(MyApp());
@@ -148,6 +150,14 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   bool _playing = false;
+  int _pageSelect = 0;
+  bool _homeHover = false;
+  bool _aboutHover = false;
+  bool _whatHover = false;
+
+  ScrollController _aboutController;
+  ScrollController _whatController;
+
   static var url = window.location.hostname;
   void _playAudio() {
     setState(() {
@@ -162,11 +172,72 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _setHomeHoverOn(PointerEvent details) {
+    setState(()  {
+      _homeHover = true;
+    });
+  }
+
+  void _setHomeHoverOff(PointerEvent details) {
+    setState(()  {
+      _homeHover = false;
+    });
+  }
+  void _setAboutHoverOn(PointerEvent details) {
+    setState(()  {
+      _aboutHover = true;
+    });
+  }
+
+  void _setAboutHoverOff(PointerEvent details) {
+    setState(()  {
+      _aboutHover = false;
+    });
+  }
+  void _setWhatHoverOn(PointerEvent details) {
+    setState(()  {
+      _whatHover = true;
+    });
+  }
+
+  void _setWhatHoverOff(PointerEvent details) {
+    setState(()  {
+      _whatHover = false;
+    });
+  }
+
+
+  void _selectHomePage() {
+    setState(()  {
+      _pageSelect = 0;
+    });
+  }
+
+  void _selectAboutPage() {
+    setState(()  {
+      _pageSelect = 1;
+    });
+  }
+
+  void _selectWhatPage() {
+    setState(()  {
+      _pageSelect = 2;
+    });
+  }
+
+  @override
+  void initState() {
+    _aboutController = ScrollController();
+    _whatController = ScrollController();
+
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     var  _mediaQuery = MediaQuery.of(context);
-    double _width = _mediaQuery.size.width;
-    double _height = _mediaQuery.size.height;
+    double _width = _mediaQuery.size.width;  //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.height :  _mediaQuery.size.width;
+    double _height = _mediaQuery.size.height; //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.width :  _mediaQuery.size.height;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Container (
@@ -215,10 +286,17 @@ class _MyHomePageState extends State<MyHomePage> {
               height:50,
               
               child: Row(children: [
-                Container(
+                MouseRegion( 
+                onEnter: _setHomeHoverOn,
+                onExit: _setHomeHoverOff,
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                onTap: _selectHomePage,
+                child: Container(
                   width: (_width < 450) ? _width/3.5 :150,  
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(  
+                  decoration: BoxDecoration( 
+                    color: _pageSelect == 0 ? Colors.white60: _homeHover ? Colors.white24 : Colors.black, 
                     border: Border( 
                       top: BorderSide(color: Colors.white, width: 5.0),
                       bottom: BorderSide(color: Colors.white, width: 5.0),
@@ -226,12 +304,21 @@ class _MyHomePageState extends State<MyHomePage> {
                       right: BorderSide(color: Colors.white, width: 2.5)
                     )
                   ),
-                  child: Text("Home", style: TextStyle(fontSize: (_width < 450) ? 14 :21, color: Colors.white))
+                  child: Text("Home", style: TextStyle(fontSize: (_width < 450) ? 14 :21, color: _pageSelect == 0 ? Colors.black87 : _homeHover ? Colors.white: Colors.white))
                 ),
-                Container(
+                ),
+                ),
+                MouseRegion( 
+                onEnter: _setAboutHoverOn,
+                onExit: _setAboutHoverOff,
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                onTap: _selectAboutPage,
+                child: Container(
                   width: (_width < 450) ? _width/3.5 :150,  
                   alignment: Alignment.center, 
                   decoration: BoxDecoration(  
+                    color: _pageSelect == 1 ? Colors.white60 : _aboutHover ? Colors.white24 : Colors.black,
                     border: Border(
                       top: BorderSide(color: Colors.white, width: 5.0),
                       bottom: BorderSide(color: Colors.white, width: 5.0),
@@ -239,12 +326,21 @@ class _MyHomePageState extends State<MyHomePage> {
                       left: BorderSide(color: Colors.white, width: 2.5)
                     )
                   ),
-                  child: Text("About me", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.white))
+                  child: Text("About me", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: _pageSelect == 1 ? Colors.black87 : _aboutHover ? Colors.white: Colors.white))
                 ),
-                Container(
+                )
+                ),
+                MouseRegion( 
+                onEnter: _setWhatHoverOn,
+                onExit: _setWhatHoverOff,
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                onTap: _selectWhatPage,
+                child: Container(
                   width: (_width < 450) ? _width/3.5 :150,   
-                  alignment: Alignment.center,
+                  alignment: Alignment.center,   
                   decoration: BoxDecoration(  
+                    color: _pageSelect == 2 ? Colors.white60 : _whatHover ? Colors.white24 : Colors.black,
                     border: Border( 
                       top: BorderSide(color: Colors.white, width: 5.0),
                       bottom: BorderSide(color: Colors.white, width: 5.0),
@@ -252,7 +348,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       left: BorderSide(color: Colors.white, width: 2.5)
                     )
                   ),
-                  child: Text("What is this?", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.white))
+                  child: Text("What is this?", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: _pageSelect == 02 ? Colors.black87 : _whatHover ? Colors.white: Colors.white))
+                ),
+                ) 
                 ),
               ],mainAxisAlignment: MainAxisAlignment.center)
             ),
@@ -264,8 +362,215 @@ class _MyHomePageState extends State<MyHomePage> {
               thickness: 3,
             ),*/
             SizedBox(height: 10),
-            RealTimeSpectrogram(height: _height, width: _width),
-            
+            (_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? Center(child: Text("Please flip your phone around to view content.", style: TextStyle(fontSize:27, color: Colors.white)))
+            : _pageSelect == 0 ? RealTimeSpectrogram(height: _height, width: _width)
+            : _pageSelect == 1 ? Expanded(child: Padding( 
+                padding: EdgeInsets.fromLTRB(22, 20, 22, 50), 
+                child: Container(padding: EdgeInsets.fromLTRB(20, 10, 5, 10), decoration: BoxDecoration(color: Colors.white60, border: Border(
+                    top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                    left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                    right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                    bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                  ),) 
+                
+                , constraints: BoxConstraints( maxWidth: 1200)
+                , child: LayoutBuilder(
+                    builder: (BuildContext context, BoxConstraints viewportConstraints) {
+                      return Scrollbar(isAlwaysShown: true, controller: _aboutController, child: SingleChildScrollView( controller: _aboutController,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: viewportConstraints.maxHeight,
+                          ),
+                          child: IntrinsicHeight( child: Padding( padding: EdgeInsets.fromLTRB(0, 0, 10, 0), 
+                
+                            child: Column (crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start,
+                              children:  [
+                                Text( 
+                                  "I am a software engineer who loves to work on novel and challenging projects that bridge the gap between high and low level technologies. " +
+                                  "I have focused my studies on wireless communications since graduate school, and I also have recent experience with applications in graphics" +
+                                  ", music production, speech analysis, and natural language processing."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                                SizedBox(height: 10),
+                                MouseRegion( 
+                                cursor: SystemMouseCursors.click,
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87),
+                                    children: <TextSpan>[
+                                      TextSpan(text: 'My resume is ',
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("http://"+url+"/ryanjamesallan.pdf");
+                                            }),
+                                      
+                                      TextSpan(
+                                          text: 'here',
+                                          style: TextStyle(color: Colors.deepPurple),
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("http://"+url+"/ryanjamesallan.pdf");
+                                            }),
+                                      TextSpan(
+                                          text: '.',
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("http://"+url+"/ryanjamesallan.pdf");
+                                            }),
+                                    ],
+                                  ),
+                                ),
+                                ),
+                                SizedBox(height: 10),
+                                Text( 
+                                  "I first gained an interest in digital signal processing in a Linear Algebra Class during my undergraduate. For a programming project, I created a phase vocoder " +
+                                  "implemented with FFT's and applied it to a few of my favorite songs. The vocoder was rather simple, but it appealed directly to my creative sensibilities and set me " +
+                                  "on the path to UCLA to learn more. At UCLA, I challenged myself with electical engineering classes like Filter Design, Speech Processing, and Digital Arithmetic to get a more rigorous understanding of signal processing. " +
+                                  "During my time there, I acquired a new interest for wireless communications, studying WiFi, Bluetooth, and LTE as well as envisioning new protocols designed to bring together physical communities, rather than drive them apart."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                                SizedBox(height: 10),
+                                Text( 
+                                  "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at MTS Sensors, in addition to increasing my understanding of " +
+                                  "electronics with the talented electical engineers here. I must credit one of my colleagues for introducing me to the LimeSDR platform which this site's server uses. " +
+                                  "My understanding of wireless was useful when solving a crucial bug in the firmware for the wireless chip in our product. " +
+                                  "Software Engineering is a craft. Like most crafts, it is honed with practice. Many concepts (asynchronous programming, generic programming, functional programming, among others) which " +
+                                  "I had learned in school have now been cemented in practice."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                                SizedBox(height: 10),
+                                Text( 
+                                  "Outside of computing work, I enjoy playing guitar, singing, and surfing. I do in fact enjoy classical music. My favorite composer is Carl Maria von Weber, " +
+                                  "and he is often played by the station to which this site's server is tuned. I spend more time listening to rock music though. Naturally, my favorite band " +
+                                  "is The Beach Boys."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                              ]
+                
+                            )
+                          )
+                          )
+                        )
+                      ));
+                    }
+                  )
+                )
+              )
+            )
+            : Expanded(child: Padding( 
+                padding: EdgeInsets.fromLTRB(22, 20, 22, 50), 
+                child: Container(padding: EdgeInsets.fromLTRB(20, 10, 5, 10), decoration: BoxDecoration(color: Colors.white60, border: Border(
+                    top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                    left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                    right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                    bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
+                  ),) 
+                
+                , constraints: BoxConstraints( maxWidth: 1200)
+                , child: LayoutBuilder(
+                    builder: (BuildContext context, BoxConstraints viewportConstraints) {
+                      return Scrollbar(isAlwaysShown: true, controller: _aboutController, child: SingleChildScrollView( controller: _aboutController,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: viewportConstraints.maxHeight,
+                          ),
+                          child: IntrinsicHeight( child:  Padding( padding: EdgeInsets.fromLTRB(0, 0, 10, 0), 
+                            child: Column (crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start,
+                              children:  [
+                                Text( 
+                                  "The home page is a spectrogram view of my favorite local FM radio station. This view is created by tuning to the station with a LimeSDR and applying some digital signal processing. " +
+                                  "Press the play button above to listen to the radio station as it is demodulated on the server. Due to limitations in the receiver, the audio " +
+                                  "is not the greatest quality. I am considering ways to filter out the noise in the output PCM, but this may make me miss my timing constraints for " +
+                                  "the spectrogram display."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                                SizedBox(height: 10),
+                                MouseRegion( 
+                                cursor: SystemMouseCursors.click,
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87),
+                                    children: <TextSpan>[
+                                      TextSpan(text: 'I encourage you to visit the WCPE website over at ',
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("https://theclassicalstation.org/");
+                                            }),
+                                      
+                                      TextSpan(
+                                          text: 'theclassicalstation.org',
+                                          style: TextStyle(color: Colors.deepPurple),
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("https://theclassicalstation.org/");
+                                            }),
+                                      TextSpan(
+                                          text: ' to listen to the pure audio.',
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("https://theclassicalstation.org/");
+                                            }),
+                                    ],
+                                  ),
+                                ),
+                                ),
+                                SizedBox(height: 10),
+                                MouseRegion( 
+                                cursor: SystemMouseCursors.click,
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87),
+                                    children: <TextSpan>[
+                                      TextSpan(text: 'The code for this site, meanwhile, is hosted ',
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("https://gitlab.com/RyanAllan/ryanallandotcom");
+                                            }),
+                                      
+                                      TextSpan(
+                                          text: 'here',
+                                          style: TextStyle(color: Colors.deepPurple),
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("https://gitlab.com/RyanAllan/ryanallandotcom");
+                                            }),
+                                      TextSpan(
+                                          text: '.',
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              launch("https://gitlab.com/RyanAllan/ryanallandotcom");
+                                            }),
+                                    ],
+                                  ),
+                                ),
+                                ),
+                                SizedBox(height: 10),
+                                Text( 
+                                  "This site has been through a number of iterations. The two primary limitations in its creation have been the performance of the Flutter Javascript engine and the " +
+                                  "upload speed on my home internet connection. Originally, I had the crazy idea of doing both the graphics and the signal processing for the spectrogram on the client side. " +
+                                  "Though I love Flutter for it's cross platform capability, it's web implementation (written in Javascript) does not have the raw performance of say a custom WebAssembly implementation " +
+                                  "written in Rust or C++."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                                SizedBox(height: 10),
+                                Text( 
+                                  "On the link speed side, it was not really feasible to send raw FFT bins over my internet anyway. Though I was able to squeak out a single client, whenever my " +
+                                  "roommate facetimes his girlfriend, the connection would slow down to a point where samples would pile up and a coherent display would be impossible. As such, the low cost approach at present "
+                                  "is one where JPEG snapshots are sent out every 2.5 seconds."
+                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                                ),
+                              ]
+                
+                            )
+                          )
+                          )
+                        )
+                      ));
+                    }
+                  )
+                )
+              )
+            )
           ],
         ),
       ),
@@ -278,7 +583,8 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Icon(Icons.play_arrow),
         elevation: 3,
       ),*/ // This trailing comma makes auto-formatting nicer for build methods.
-    );
+      );
+    
   }
 }
 
@@ -298,7 +604,6 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
   int  _queuePosition = 0;
   bool _duplicate = false;
   bool _served = true;
-  bool _ready = false;
   //List<num> rawISamples = [];
   //List<num> rawQSamples = [];
   //Number of windows processed each cycle: 429
@@ -310,7 +615,9 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
 
 
   //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
-  StreamController<LinearGradient> gradientController = StreamController<LinearGradient>.broadcast();
+  //StreamController<LinearGradient> gradientController = StreamController<LinearGradient>.broadcast();
+  StreamController<Tuple2<String, DateTime>> imageController = StreamController<Tuple2<String, DateTime>>.broadcast(); 
+
   static var url = window.location.hostname;
   var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
 
@@ -323,7 +630,8 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
 
   @override
   void dispose() {
-    gradientController.close();
+    //gradientController.close();
+    imageController.close();
     super.dispose();
   }
 
@@ -332,7 +640,7 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
     channel.stream.listen((data) {
       Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, data);
       messageFuture.then(( Map<String, dynamic> message) {
-          print("FUTURE RETURN");
+          //print("FUTURE RETURN");
           if (message.containsKey("Served")) {
             setState(() {
               _connected = true;
@@ -354,9 +662,10 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
               _duplicate = message["Duplicate"];
             });
           }
-          if (message.containsKey("Magnitudes")) {
-            List<dynamic> rgbMagnitudes = message["Magnitudes"];
-            Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
+          if (message.containsKey("Image Name")) {
+            String imageName = message["Image Name"];
+            DateTime imageTime = DateTime.parse(message["Image Time"]);
+            /*Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
             gradientFuture.then((gradient) {
             /*var gradient = LinearGradient(  
               begin: Alignment.centerLeft,
@@ -368,7 +677,8 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
             } on Exception catch(e) {
               print('error caught: $e');
             }
-            });
+            });*/
+            imageController.add(Tuple2<String,DateTime>(imageName, imageTime));
           }
       }
       );
@@ -388,7 +698,7 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
                 : _duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
                 : _queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $_queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
                 : _served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
-                  SpectrogramWindow(gradientStream: gradientController.stream, width: _width, height: _height)
+                  SpectrogramWindow(imageStream: imageController.stream, width: _width, height: _height)
                 : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
         );
     
@@ -396,8 +706,9 @@ class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
 }
 
 class SpectrogramWindow extends StatefulWidget {
-  SpectrogramWindow({Key key, this.gradientStream, this.width, this.height}) : super(key: key);
-  final Stream<LinearGradient> gradientStream;
+  SpectrogramWindow({Key key, /*this.gradientStream,*/ this.imageStream, this.width, this.height}) : super(key: key);
+  //final Stream<LinearGradient> gradientStream;
+  final Stream<Tuple2<String, DateTime>> imageStream;
   final double width;
   final double height;
 
@@ -406,32 +717,19 @@ class SpectrogramWindow extends StatefulWidget {
 }
 
 class _SpectrogramWindowState extends State<SpectrogramWindow> {
-  //static List<Color> colorList = new List.filled(8192,Color.fromARGB(255, 0, 0, 0), growable: true);
-  static List<Color> altColorList = new List.filled(8192,Color.fromARGB(255, 128, 128, 128), growable: true);
 
-  static var initGradient = LinearGradient(  
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight, 
-    colors: altColorList
-  );
-
-  //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
-  List<LinearGradient> gradientList = new List.filled(538, initGradient, growable:true);
-
-  List<Widget> myChildren =   new List.filled(538,Expanded(child:Container(
-          decoration: BoxDecoration(
-            gradient: initGradient
-          )
-        ))
-        , growable:true
-        );
-  //List<LinearGradient> gradientList = new List.filled(538, gradient, growable:true);
+  dart_ui.Image myImage;
   
-  int _repaintCounter;
-  bool _repaint = false;
+  bool _ready = false;
+  bool _fetchingImage = false;
+  DateTime myTime;
+  DateTime laterTime;
 
-  SamplesPainter mySamplesPainter;
+  static var url = window.location.hostname;
 
+  static NumberFormat numberFormat = new NumberFormat("00");
+
+  /*
   void putContainer(Container newContainer) {
     setState(() {
       myChildren.insert(0, Expanded(child:newContainer));
@@ -460,11 +758,11 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
         _repaint = false;
       }    
 
-  }
+  }*/
 
   @override
   void initState() {
-    widget.gradientStream.listen((data) {
+    widget.imageStream.listen((data) {
       /*putContainer(
         Container( 
           decoration: BoxDecoration(
@@ -472,7 +770,21 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
           )
         )
       );*/
-      putGradient(data);
+      //putGradient(data);
+      //print("http://"+url+"/"+data.item1);
+      if (!_fetchingImage ) {
+      _fetchingImage = true;
+      var imageFuture = fetchImage("http://"+url+"/"+data.item1);
+      imageFuture.then( (image) {
+        _fetchingImage  = false;
+        setState(() {
+          myImage = image;
+          myTime = data.item2;
+          laterTime = data.item2.add(Duration(seconds:10));
+          _ready = true;
+        });
+      });
+      }
     }
     );
     super.initState();
@@ -482,7 +794,6 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
   Widget build(BuildContext context) {
     double _width = widget.width;
     double _height = widget.height;
-    
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
       child:Column( 
@@ -504,9 +815,9 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
               bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
             ),
           ),
-          
+          constraints: BoxConstraints.expand(),
           child:
-            CustomPaint( 
+            /*CustomPaint( 
               painter: SamplesPainter(gradientList, _repaint),
               child: Container( 
                 child: CustomPaint( 
@@ -514,7 +825,31 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
                   child: Center(child: Text(""))
                 )
               )
-            ) 
+            )*/
+            _ready ? Stack(children: [Container(constraints: BoxConstraints.expand(),child:FittedBox(  
+              fit: BoxFit.fill,
+              child: SizedBox(  
+                width: myImage.width.toDouble(),
+                height: myImage.height.toDouble(),
+                child: CustomPaint(  
+                  painter: ImagePainter(myImage),
+                  child: Center(child: Text(""))/* Container( 
+                    child: CustomPaint( 
+                      painter: TimePainter((_width < 450) ? true:false),
+                      child: Center(child: Text(""))
+                    )*/
+                )
+                )
+              ),
+            ),
+            Container(constraints: BoxConstraints.expand(),child:
+              CustomPaint( 
+                  painter: TimePainter((_width < 450) ? true:false, "${numberFormat.format(myTime.hour)}:${numberFormat.format(myTime.minute)}:${numberFormat.format(myTime.second)} EST", "${numberFormat.format(laterTime.hour)}:${numberFormat.format(laterTime.minute)}:${numberFormat.format(laterTime.second)} EST"),
+                  child: Center(child: Text(""))
+                    
+                )
+            )
+            ]): Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
           )
           ),
           Container( 
@@ -582,11 +917,27 @@ class SamplesPainter extends CustomPainter {
 
 }
 
+class ImagePainter extends CustomPainter {
+  final dart_ui.Image myImage;
+
+  ImagePainter(this.myImage);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawImage(myImage, Offset(0,0), Paint());
+  }
+
+  @override
+  bool shouldRepaint(ImagePainter oldDelegate) => this.myImage != oldDelegate.myImage;
+}
+
 class TimePainter extends CustomPainter {
 
   final bool smallText;
+  final String present;
+  final String tenSeconds;
 
-  TimePainter(this.smallText);
+  TimePainter(this.smallText, this.present, this.tenSeconds);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -594,36 +945,36 @@ class TimePainter extends CustomPainter {
     var textStyle = TextStyle(color: Colors.white, fontSize: smallText ? 12 : 18);
 
     var firstTextSpan = TextSpan(  
-      text: "Most Recent",
+      text: present,
       style: textStyle
     );
     var firstTextPainter = TextPainter(  
       text: firstTextSpan,
-      textDirection: TextDirection.ltr
+      textDirection: dart_ui.TextDirection.ltr
     );
     firstTextPainter.layout(  
       minWidth: 0,
       maxWidth: size.width*0.33
     );
-    firstTextPainter.paint(canvas, Offset(2,2));
+    firstTextPainter.paint(canvas, Offset(size.width - 3 - firstTextPainter.width,3));
 
     var lastTextSpan = TextSpan(  
-      text: "10s Before",
+      text: tenSeconds,
       style: textStyle
     );
     var lastTextPainter = TextPainter(  
       text: lastTextSpan,
-      textDirection: TextDirection.ltr
+      textDirection: dart_ui.TextDirection.ltr
     );
     lastTextPainter.layout(  
       minWidth: 0,
       maxWidth: size.width*0.33
     );
-    lastTextPainter.paint(canvas, Offset(3, size.height - 3- lastTextPainter.height));
+    lastTextPainter.paint(canvas, Offset( size.width - 3 - lastTextPainter.width, size.height - 3- lastTextPainter.height));
   }
 
   @override
-  bool shouldRepaint(TimePainter oldDelegate) =>  (this.smallText != oldDelegate.smallText);
+  bool shouldRepaint(TimePainter oldDelegate) =>  (this.smallText != oldDelegate.smallText) || (this.present != oldDelegate.present);
 
 }
 
@@ -648,12 +999,12 @@ class TickPainter extends CustomPainter {
     canvas.drawRect(lastTickRect,Paint()..color = Colors.white);
 
     var firstTextSpan = TextSpan(  
-      text: "89.59 MHz",
+      text: "89.7 MHz",
       style: textStyle
     );
     var firstTextPainter = TextPainter(  
       text: firstTextSpan,
-      textDirection: TextDirection.ltr
+      textDirection: dart_ui.TextDirection.ltr
     );
     firstTextPainter.layout(  
       minWidth: 0,
@@ -662,12 +1013,12 @@ class TickPainter extends CustomPainter {
     firstTextPainter.paint(canvas, Offset(0, size.height - 8 - firstTextPainter.height));
 
     var middleTextSpan = TextSpan(  
-      text: "89.7 MHz",
+      text: "89.755 MHz",
       style: textStyle
     );
     var middleTextPainter = TextPainter(  
       text: middleTextSpan,
-      textDirection: TextDirection.ltr
+      textDirection: dart_ui.TextDirection.ltr
     );
     middleTextPainter.layout(  
       minWidth: 0,
@@ -681,7 +1032,7 @@ class TickPainter extends CustomPainter {
     );
     var lastTextPainter = TextPainter(  
       text: lastTextSpan,
-      textDirection: TextDirection.ltr
+      textDirection: dart_ui.TextDirection.ltr
     );
     lastTextPainter.layout(  
       minWidth: 0,
