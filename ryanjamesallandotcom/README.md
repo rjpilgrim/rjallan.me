@@ -1,5 +1,3 @@
-# ryanjamesallandotcom
-
 This is client which runs in the browser, built with Flutter Web.
 
 Please visit https://flutter.dev/web for instructions on building flutter for web.
