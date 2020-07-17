@@ -599,11 +599,11 @@ class RealTimeSpectrogram extends StatefulWidget {
 }
 
 class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
-  bool _connected = true;
+  bool _connected = false;
   bool _queued = false;
   int  _queuePosition = 0;
   bool _duplicate = false;
-  bool _served = true;
+  bool _served = false;
   //List<num> rawISamples = [];
   //List<num> rawQSamples = [];
   //Number of windows processed each cycle: 429
