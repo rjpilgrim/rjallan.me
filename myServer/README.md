@@ -1,6 +1,6 @@
 This is the primary binary which runs on my website's server.
 
-#Dependencies
+# Dependencies
 
 You will need to build the LimeSuite library and headers. When generating the makefile for LimeSuite using CMake, I had to pass the following command in the build directory:
 
@@ -13,7 +13,7 @@ Furthermore, you will need the development librarys for boost (really only asio 
 
 Finally you will need nlohmann's json library (https://github.com/nlohmann/json) and SimpleWebSocketServer (https://gitlab.com/eidheim/Simple-WebSocket-Server). THe easiest way to deal with these in my project's case is to issue a git clone command to their repositories from this directory. My build configuration will automatically incorporate the resulting folder into the build.
 
-#Additional Configuration 
+# Additional Configuration 
 
 This binary assumes that there is a default debian nginx WebServer running with some minor reconfiguration on the sites-available. Start with this command: 
 
