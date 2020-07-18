@@ -48,7 +48,7 @@ static uint32_t wav_subchunk_two_size = 0;
 /* ALSA LIB PARAMETERS */
 
 
-static char *audio_device = "hw:2,1,0";			/* playback device */
+static char *audio_device = "hw:0,1,0";			/* playback device */
 static snd_pcm_format_t alsa_format = SND_PCM_FORMAT_S16_LE;	/* sample format */
 static unsigned int alsa_rate = 44100;			/* stream rate */
 static unsigned int alsa_channels = 1;			/* count of channels */

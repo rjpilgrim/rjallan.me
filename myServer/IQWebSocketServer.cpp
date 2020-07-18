@@ -37,7 +37,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 								if(ec) {
 									std::cout << "Server: Error sending message. " <<
 									// See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
-									"Error: " << ec << ", error message: " << ec.message();
+									"Error: " << ec << ", error message: " << ec.message() << std::endl;;
 								}
 							});
 				
@@ -88,7 +88,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
                             if(ec) {
                                 std::cout << "Server: Error sending message. " <<
                                 // See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
-                                "Error: " << ec << ", error message: " << ec.message();
+                                "Error: " << ec << ", error message: " << ec.message() << std::endl;
                                 status_ = -1;
                             }
                         });
@@ -110,7 +110,7 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 								if(ec) {
 									std::cout << "Server: Error sending message. " <<
 									// See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
-									"Error: " << ec << ", error message: " << ec.message();
+									"Error: " << ec << ", error message: " << ec.message() << std::endl;
                                     status_ = -1;
 								}
 							});
@@ -122,13 +122,13 @@ IQWebSocketServer::IQWebSocketServer(unsigned short port, std::string endpoint) 
 
 			// See RFC 6455 7.4.1. for status codes
 			echo.on_close = [](std::shared_ptr<WsServer::Connection> connection, int status, const std::string & /*reason*/) {
-				std::cout << "Server: Closed connection " << connection.get() << " with status code " << status;
+				std::cout << "Server: Closed connection " << connection.get() << " with status code " << status << std::endl;
 			};
 
 			// See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
 			echo.on_error = [](std::shared_ptr<WsServer::Connection> connection, const SimpleWeb::error_code &ec) {
 				std::cout << "Server: Error in connection " << connection.get() << ". "
-				<< "Error: " << ec << ", error message: " << ec.message();
+				<< "Error: " << ec << ", error message: " << ec.message() << std::endl;
 			};
 
 		}
@@ -431,6 +431,12 @@ void IQWebSocketServer::closeFile() {
 
 const uint8_t filter_byte = 0;
 
+void IQWebSocketServer::check() {
+    if (!server) {
+
+    }
+}
+
 void IQWebSocketServer::run() {
     
     std::promise<unsigned short> server_port;
@@ -440,6 +446,7 @@ void IQWebSocketServer::run() {
                 server_port.set_value(port);
             }
             );
+            printf("GOT PAST START\n");
         } 
     };
     std::cout << "Server listening on port" << server_port.get_future().get() << std::endl << std::endl;

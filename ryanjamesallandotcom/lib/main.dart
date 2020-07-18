@@ -155,10 +155,20 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _aboutHover = false;
   bool _whatHover = false;
 
+  bool _connected = false;
+  bool _queued = false;
+  int  _queuePosition = 0;
+  bool _duplicate = false;
+  bool _served = false;
+
   ScrollController _aboutController;
   ScrollController _whatController;
 
   static var url = window.location.hostname;
+  var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
+
+  StreamController<Tuple2<String, DateTime>> imageController = StreamController<Tuple2<String, DateTime>>.broadcast(); 
+
   void _playAudio() {
     setState(() {
       if (!_playing) {
@@ -226,10 +236,62 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   @override
+  void dispose() {
+    //gradientController.close();
+    imageController.close();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     _aboutController = ScrollController();
     _whatController = ScrollController();
-
+    channel.stream.listen((data) {
+      Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, data);
+      messageFuture.then(( Map<String, dynamic> message) {
+          //print("FUTURE RETURN");
+          if (message.containsKey("Served")) {
+            setState(() {
+              _connected = true;
+              _queued = false;
+              _duplicate = false;
+              _served = message["Served"];
+            });
+          }
+          if (message.containsKey("Queue Position")) {
+            setState(() {
+              _connected = true;
+              _queued = true;
+              _queuePosition = message["Queue Position"];
+            });
+          }
+          if (message.containsKey("Duplicate")) {
+            setState(() {
+              _connected = true;
+              _duplicate = message["Duplicate"];
+            });
+          }
+          if (message.containsKey("Image Name")) {
+            String imageName = message["Image Name"];
+            DateTime imageTime = DateTime.parse(message["Image Time"]);
+            /*Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
+            gradientFuture.then((gradient) {
+            /*var gradient = LinearGradient(  
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight, 
+              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
+            );*/
+            try {
+              gradientController.add(gradient);
+            } on Exception catch(e) {
+              print('error caught: $e');
+            }
+            });*/
+            imageController.add(Tuple2<String,DateTime>(imageName, imageTime));
+          }
+      }
+      );
+    });
     super.initState();
   }
 
@@ -363,7 +425,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),*/
             SizedBox(height: 10),
             (_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? Center(child: Text("Please flip your phone around to view content.", style: TextStyle(fontSize:27, color: Colors.white)))
-            : _pageSelect == 0 ? RealTimeSpectrogram(height: _height, width: _width)
+            : _pageSelect == 0 ? RealTimeSpectrogram(height: _height, width: _width, connected: _connected, queued: _queued, queuePosition: _queuePosition, duplicate: _duplicate, served: _served, imageStream: imageController.stream)
             : _pageSelect == 1 ? Expanded(child: Padding( 
                 padding: EdgeInsets.fromLTRB(22, 20, 22, 50), 
                 child: Container(padding: EdgeInsets.fromLTRB(20, 10, 5, 10), decoration: BoxDecoration(color: Colors.white60, border: Border(
@@ -554,9 +616,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                                 SizedBox(height: 10),
                                 Text( 
-                                  "On the link speed side, it was not really feasible to send raw FFT bins over my internet anyway. Though I was able to squeak out a single client, whenever my " +
+                                  "On the link speed side, it was not really feasible to send sample values directly over my internet anyway. Though I was able to squeak out a single client, whenever my " +
                                   "roommate facetimes his girlfriend, the connection would slow down to a point where samples would pile up and a coherent display would be impossible. As such, the low cost approach at present "
-                                  "is one where JPEG snapshots are sent out every 2.5 seconds."
+                                  "is one where JPEG snapshots are sent out every 2.5 seconds. If the connection cannot fetch a snapshot in that time frame, it waits for the next period to fetch a new snapshot."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                               ]
@@ -588,121 +650,34 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class RealTimeSpectrogram extends StatefulWidget {
-  RealTimeSpectrogram({Key key, this.width, this.height}) : super(key: key);
-
+class RealTimeSpectrogram extends StatelessWidget {
+  RealTimeSpectrogram({Key key, this.width, this.height, this.connected, this.queued, this.queuePosition, this.duplicate, this.served, this.imageStream}) : super(key: key);
   final double width;
   final double height;
-
-  @override
-  _RealTimeSpectrogramState createState() => _RealTimeSpectrogramState();
-}
-
-class _RealTimeSpectrogramState extends State<RealTimeSpectrogram> {
-  bool _connected = false;
-  bool _queued = false;
-  int  _queuePosition = 0;
-  bool _duplicate = false;
-  bool _served = false;
-  //List<num> rawISamples = [];
-  //List<num> rawQSamples = [];
-  //Number of windows processed each cycle: 429
-  //Number of samples removes from samples after processing cycle: 219648
-  //Number of samples processed each cycle: 220160
-  //List<int> displayedMagnitude = new List.filled(4410368,128, growable: true);
-
-  //List<LinearGradient> gradientBuffer = [];
-
-
-  //List<LinearGradient> gradientList = new List.filled(4307, gradient, growable:true);
-  //StreamController<LinearGradient> gradientController = StreamController<LinearGradient>.broadcast();
-  StreamController<Tuple2<String, DateTime>> imageController = StreamController<Tuple2<String, DateTime>>.broadcast(); 
-
-  static var url = window.location.hostname;
-  var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
-
-  /*Future<List<LinearGradient>> _processSamples(List<num> rawISamples, List<num> rawQSamples) async {
-    Map<String,List<num>> myMap = Map();
-    myMap["I"] = rawISamples;
-    myMap["Q"] = rawQSamples;
-    return compute(iqToMagnitude, myMap);
-  }*/
-
-  @override
-  void dispose() {
-    //gradientController.close();
-    imageController.close();
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    channel.stream.listen((data) {
-      Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, data);
-      messageFuture.then(( Map<String, dynamic> message) {
-          //print("FUTURE RETURN");
-          if (message.containsKey("Served")) {
-            setState(() {
-              _connected = true;
-              _queued = false;
-              _duplicate = false;
-              _served = message["Served"];
-            });
-          }
-          if (message.containsKey("Queue Position")) {
-            setState(() {
-              _connected = true;
-              _queued = true;
-              _queuePosition = message["Queue Position"];
-            });
-          }
-          if (message.containsKey("Duplicate")) {
-            setState(() {
-              _connected = true;
-              _duplicate = message["Duplicate"];
-            });
-          }
-          if (message.containsKey("Image Name")) {
-            String imageName = message["Image Name"];
-            DateTime imageTime = DateTime.parse(message["Image Time"]);
-            /*Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
-            gradientFuture.then((gradient) {
-            /*var gradient = LinearGradient(  
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight, 
-              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
-            );*/
-            try {
-              gradientController.add(gradient);
-            } on Exception catch(e) {
-              print('error caught: $e');
-            }
-            });*/
-            imageController.add(Tuple2<String,DateTime>(imageName, imageTime));
-          }
-      }
-      );
-    });
-    super.initState();
-  }
-
+  final bool connected;
+  final bool queued;
+  final int  queuePosition;
+  final bool duplicate;
+  final bool served;
+  final Stream<Tuple2<String, DateTime>> imageStream;
 
   @override
   Widget build(BuildContext context) {
-    double _width = widget.width;
-    double _height = widget.height;
+    double _width = width;
+    double _height = height;
     return SizedBox(  
           width: _width-18,
           height: _height*0.75,
-          child: !_connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
-                : _duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
-                : _queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $_queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
-                : _served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
-                  SpectrogramWindow(imageStream: imageController.stream, width: _width, height: _height)
+          child: !connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
+                : duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
+                : queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
+                : served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
+                  SpectrogramWindow(imageStream: imageStream, width: _width, height: _height)
                 : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
         );
     
   }
+
 }
 
 class SpectrogramWindow extends StatefulWidget {

@@ -16,7 +16,7 @@
 #include <ctime>
 #include <stdio.h>
 #include <iomanip>
-#include <zlib.h>
+//#include <zlib.h> zlib is only needed for png implementation
 #include <jpeglib.h>
 #include <stdlib.h>
 
@@ -44,6 +44,7 @@ public:
 	void writeToBuffer(const double * buffer );
 	
 	void run();
+	void check();
 
 protected:
 	double i_buffer[3048];
