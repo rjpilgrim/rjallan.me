@@ -23,7 +23,7 @@ In order for the play button to work as intended, the following code must be add
           audio.play();
         });
       }
-      else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
         audio.src = path;
         audio.addEventListener('loadedmetadata', function () {
           audio.play();
