@@ -22,99 +22,10 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 //import 'hann1024.dart';
 
-/*const hann_sum = 552.5000000000002;
-const min_magnitude = 0.2048;
-var myHannWindow = fft.Window(fft.WindowType.HANN);
-
-List<LinearGradient> iqToMagnitude(Map<String,List<num>> parameterMap) {
-  List<LinearGradient> returnList = [];
-  List<num> rawISamples = parameterMap["I"];
-  List<num> rawQSamples = parameterMap["Q"];
-  print("BEFORE FIRST LOOP");
-  for (int i = 0; i < 429; i++) {
-    List<int> rgbList = [];
-    List<num> iWindow = rawISamples.getRange(i*512, i*512+1024);
-    List<num> qWindow = rawQSamples.getRange(i*512, i*512+1024);
-    List<num> iFilteredWindow = List(1024);
-    List<num> qFilteredWindow = List(1024);
-    print("BEFORE WINDOW");
-    for (int j = 0; j<1024; j++) {
-      iFilteredWindow[j] = iWindow[j] * hann1024[j];
-      qFilteredWindow[j] = qWindow[j] * hann1024[j];
-    }
-    print("BEFORE FFT");
-    var iFFT = new fft.FFT().Transform(iFilteredWindow);
-    var qFFT = new fft.FFT().Transform(qFilteredWindow);
-    print("BEFORE SECOND LOOP");
-    for (int j = 512; j<1024; j++) {
-      var complexFFT = iFFT[j] + (Complex.cartesian(0.0, 1.0) * qFFT[j]);
-      var magnitude = complexFFT.modulus;
-      if (magnitude <= 0) {
-        magnitude = min_magnitude;
-      }
-      var normalizedMagnitude = magnitude/2048/hann_sum/2;
-      var dbFSMagnitude = 20 * log(normalizedMagnitude) / log(10);
-      int rgbMagnitude =((-80-dbFSMagnitude)*255/-80).round().abs();
-      if (rgbMagnitude > 255) {
-        rgbMagnitude = 255;
-      }
-      rgbList.add(rgbMagnitude);
-    }
-    print("BEFORE THIRD LOOP");
-    for (int j = 0; j<512; j++) {
-      var complexFFT = iFFT[j] + (Complex.cartesian(0.0, 1.0) * qFFT[j]);
-      var magnitude = complexFFT.modulus;
-      if (magnitude <= 0) {
-        magnitude = min_magnitude;
-      }
-      var normalizedMagnitude = magnitude/2048/hann_sum/2;
-      var dbFSMagnitude = 20 * log(normalizedMagnitude) / log(10);
-      int rgbMagnitude =((-80-dbFSMagnitude)*255/-80).round().abs();
-      if (rgbMagnitude > 255) {
-        rgbMagnitude = 255;
-      }
-      rgbList.add(rgbMagnitude);
-    }
-    List<Color> colorList = [];
-    print("BEFORE FOURTH LOOP");
-    for (int j = 0; j<1024; j++) {
-      int value = rgbList[j];
-      colorList.add(Color.fromARGB(255, value, value, value));
-    }
-    var gradient = LinearGradient(  
-      begin: Alignment.centerLeft,
-      end: Alignment.centerRight, 
-      colors: colorList
-    );
-    returnList.add(gradient);
-  }
-  return returnList;
-}
-*/
 Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
-  //print("TRY DECODE on $responseBody");
   return jsonDecode(responseBody);
 }
 
-/*LinearGradient gradientIsolate(List<dynamic> rgbMagnitudes) {
-  return LinearGradient(  
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight, 
-              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
-            );
-}
-
-List<Tuple2<Rect, Paint>> canvasIsolate(Tuple2<List<LinearGradient>, Size> parameters) {
-  List<Tuple2<Rect, Paint>> returnList = [];
-  for(int i = 0; i < 538; i++) {
-      double myY = (i/538) * parameters.item2.height;
-      var rect = Rect.fromPoints(Offset(0, myY), Offset(parameters.item2.width, myY));
-      var gradient = parameters.item1[i];
-      var paint = Paint()..shader = gradient.createShader(rect)..blendMode = BlendMode.screen..strokeWidth=(parameters.item2.height/538)..style=PaintingStyle.stroke;
-      returnList.add(Tuple2<Rect,Paint>(rect, paint));
-  }
-  return returnList;
-}*/
 
 Future<dart_ui.Image> fetchImage(String url) async {
   var response = await http.get(url);
@@ -134,7 +45,7 @@ class MyApp extends StatelessWidget {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: MyHomePage(title: 'Ryan Allan'),
+      home: MyHomePage(title: 'RJ Allan'),
     );
   }
 }
@@ -322,7 +233,7 @@ class _MyHomePageState extends State<MyHomePage> {
               height:(_width < 450) ? 60 :70,
               child: Row(  
                 children: [  
-                  Text("Ryan Allan", style: TextStyle(fontSize: (_width < 450) ? 31 :41, color: Colors.white)),
+                  Text("RJ Allan", style: TextStyle(fontSize: (_width < 450) ? 31 :41, color: Colors.white)),
                   SizedBox(width: 10),
                   Ink(
                     decoration: const ShapeDecoration(
@@ -449,7 +360,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               children:  [
                                 Text( 
                                   "I am a software engineer who loves to work on novel and challenging projects that bridge the gap between high and low level technologies. " +
-                                  "I have focused my studies on wireless communications since graduate school, and I also have recent experience with applications in graphics" +
+                                  "I have recent experience with applications in IOT, wireless communications, graphics" +
                                   ", music production, speech analysis, and natural language processing."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
@@ -463,7 +374,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       TextSpan(text: 'My resume is ',
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              launch("http://"+url+"/ryanjamesallan.pdf");
+                                              launch("http://"+url+"/rjallan.pdf");
                                             }),
                                       
                                       TextSpan(
@@ -471,13 +382,13 @@ class _MyHomePageState extends State<MyHomePage> {
                                           style: TextStyle(color: Colors.deepPurple),
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              launch("http://"+url+"/ryanjamesallan.pdf");
+                                              launch("http://"+url+"/rjallan.pdf");
                                             }),
                                       TextSpan(
                                           text: '.',
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              launch("http://"+url+"/ryanjamesallan.pdf");
+                                              launch("http://"+url+"/rjallan.pdf");
                                             }),
                                     ],
                                   ),
@@ -485,26 +396,19 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                                 SizedBox(height: 10),
                                 Text( 
-                                  "I first gained an interest in digital signal processing in a Linear Algebra Class during my undergraduate. For a programming project, I created a phase vocoder " +
-                                  "implemented with FFT's and applied it to a few of my favorite songs. The vocoder was rather simple, but it appealed directly to my creative sensibilities and set me " +
-                                  "on the path to UCLA to learn more. At UCLA, I challenged myself with electical engineering classes like Filter Design, Speech Processing, and Digital Arithmetic to get a more rigorous understanding of signal processing. " +
-                                  "During my time there, I acquired a new interest for wireless communications, studying WiFi, Bluetooth, and LTE as well as envisioning new protocols designed to bring together physical communities, rather than drive them apart."
+                                  "I received my BS in Computer Science from UNC Chapel Hill, and my MS in Computer Science from UCLA. I focused my studies at UCLA in wireless communications "+ 
+                                  "envisioning new protocols designed to bring together physical communities."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                                 SizedBox(height: 10),
                                 Text( 
-                                  "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at MTS Sensors, in addition to increasing my understanding of " +
-                                  "electronics with the talented electical engineers here. I must credit one of my colleagues for introducing me to the LimeSDR platform which this site's server uses. " +
-                                  "My understanding of wireless was useful when solving a crucial bug in the firmware for the wireless chip in our product. " +
-                                  "Software Engineering is a craft. Like most crafts, it is honed with practice. Many concepts (asynchronous programming, generic programming, functional programming, among others) which " +
-                                  "I had learned in school have now been cemented in practice."
+                                  "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at MTS Sensors. In addition to increasing my understanding of " +
+                                  "electronics with the talented electical engineers here. I have gained valuable experience in IOT software development including UI development and embedded firmware development."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                                 SizedBox(height: 10),
                                 Text( 
-                                  "Outside of computing work, I enjoy playing guitar, singing, and surfing. I do in fact enjoy classical music. My favorite composer is Carl Maria von Weber, " +
-                                  "and he is often played by the station to which this site's server is tuned. I spend more time listening to rock music though. Naturally, my favorite band " +
-                                  "is The Beach Boys."
+                                  "Outside of work, I enjoy playing guitar, singing, and surfing. I enjoy following baseball and college basketball, following the Dodgers and UCLA Bruins primarily."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                               ]
@@ -541,9 +445,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               children:  [
                                 Text( 
                                   "The home page is a spectrogram view of my favorite local FM radio station. This view is created by tuning to the station with a LimeSDR and applying some digital signal processing. " +
-                                  "Press the play button above to listen to the radio station as it is demodulated on the server. Due to limitations in the receiver, the audio " +
-                                  "is not the greatest quality. I am considering ways to filter out the noise in the output PCM, but this may make me miss my timing constraints for " +
-                                  "the spectrogram display."
+                                  "Press the play button above to listen to the radio station as it is demodulated on the server."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                                 SizedBox(height: 10),
@@ -586,7 +488,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                       TextSpan(text: 'The code for this site, meanwhile, is hosted ',
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              launch("https://gitlab.com/RyanAllan/ryanallandotcom");
+                                              launch("https://github.com/rjpilgrim/rjallan.me");
                                             }),
                                       
                                       TextSpan(
@@ -594,13 +496,13 @@ class _MyHomePageState extends State<MyHomePage> {
                                           style: TextStyle(color: Colors.deepPurple),
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              launch("https://gitlab.com/RyanAllan/ryanallandotcom");
+                                              launch("https://github.com/rjpilgrim/rjallan.me");
                                             }),
                                       TextSpan(
                                           text: '.',
                                           recognizer: TapGestureRecognizer()
                                             ..onTap = () {
-                                              launch("https://gitlab.com/RyanAllan/ryanallandotcom");
+                                              launch("https://github.com/rjpilgrim/rjallan.me");
                                             }),
                                     ],
                                   ),
@@ -608,17 +510,15 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                                 SizedBox(height: 10),
                                 Text( 
-                                  "This site has been through a number of iterations. The two primary limitations in its creation have been the performance of the Flutter Javascript engine and the " +
-                                  "upload speed on my home internet connection. Originally, I had the crazy idea of doing both the graphics and the signal processing for the spectrogram on the client side. " +
-                                  "Though I love Flutter for it's cross platform capability, it's web implementation (written in Javascript) does not have the raw performance of say a custom WebAssembly implementation " +
-                                  "written in Rust or C++."
+                                  "This site uses the flutter web engine for its display. On the back end, there is an nginx server running on a computer in my house. The displayed spectrogram screenshots and audio stream" +
+                                  "are generated by a process running on that computer, which has the SDR unit connected to it. The audio stream is generated by a digital low pass filter followed by a phase difference calculation" + 
+                                  "performed on the samples coming in from the SDR unit. The spectrogram is created by an FFT performed after the initial low pass filter, followed by a write to a PNG pixel row, building out" +
+                                  "a complete spectrogram snapshot as samples come in."
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                                 SizedBox(height: 10),
                                 Text( 
-                                  "On the link speed side, it was not really feasible to send sample values directly over my internet anyway. Though I was able to squeak out a single client, whenever my " +
-                                  "roommate facetimes his girlfriend, the connection would slow down to a point where samples would pile up and a coherent display would be impossible. As such, the low cost approach at present "
-                                  "is one where JPEG snapshots are sent out every 2.5 seconds. If the connection cannot fetch a snapshot in that time frame, it waits for the next period to fetch a new snapshot."
+                                  "This site i"
                                   ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
                                 ),
                               ]
@@ -671,7 +571,7 @@ class RealTimeSpectrogram extends StatelessWidget {
           child: !connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
                 : duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
                 : queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
-                : served ? //Center(child: Text("Testing Compute function no graphics.", style: TextStyle(fontSize:27, color: Colors.white)))
+                : served ? 
                   SpectrogramWindow(imageStream: imageStream, width: _width, height: _height)
                 : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
         );
