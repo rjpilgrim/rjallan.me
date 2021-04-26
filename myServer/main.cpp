@@ -9,7 +9,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <alsa/asoundlib.h>
+
 #include <IQWebSocketServer.hpp>
 #ifdef USE_GNU_PLOT
 #include "gnuPlotPipe.h"
@@ -45,232 +45,7 @@ static uint16_t wav_bits_per_sample = 16;
 static const char wav_subchunk_two_id[] = {0x64, 0x61, 0x74, 0x61};
 static uint32_t wav_subchunk_two_size = 0;
 
-/* ALSA LIB PARAMETERS */
 
-
-static char *audio_device = "hw:0,1,0";			/* playback device */
-static snd_pcm_format_t alsa_format = SND_PCM_FORMAT_S16_LE;	/* sample format */
-static unsigned int alsa_rate = 44100;			/* stream rate */
-static unsigned int alsa_channels = 1;			/* count of channels */
-static unsigned int alsa_buffer_time = 50000;//10000000;		/* ring buffer length in us */
-static unsigned int alsa_period_time = 4535; //100000;		/* period time in us */ 10
-static int alsa_resample = 1;				/* enable alsa-lib resampling */
-static int alsa_period_event = 1;				/* produce poll event after each period */
-
-static snd_pcm_sframes_t alsa_buffer_size;
-static snd_pcm_sframes_t alsa_period_size;
-static snd_output_t *alsa_output = NULL;
-
-snd_pcm_t *alsa_handle;
-
-
-static int xrun_recovery(snd_pcm_t *handle, int err)
-{
-	if (err == -EPIPE) {	/* under-run */
-		err = snd_pcm_prepare(handle);
-		if (err < 0)
-			printf("Can't recovery from underrun, prepare failed: %s\n", snd_strerror(err));
-		return 0;
-	} else if (err == -ESTRPIPE) {
-		while ((err = snd_pcm_resume(handle)) == -EAGAIN) {
-            struct timespec tim, tim2;
-            tim.tv_sec = 0;
-            tim.tv_nsec = 50000L;
-			nanosleep(&tim, &tim2);	/* wait until the suspend flag is released */
-        }    
-		if (err < 0) {
-			err = snd_pcm_prepare(handle);
-			if (err < 0)
-				printf("Can't recovery from suspend, prepare failed: %s\n", snd_strerror(err));
-		}
-		return 0;
-	}
-	return err;
-}
-
-static int set_hwparams(snd_pcm_t *handle,
-			snd_pcm_hw_params_t *params,
-			snd_pcm_access_t access)
-{
-	unsigned int rrate;
-	snd_pcm_uframes_t size;
-	int err, dir;
-
-	/* choose all parameters */
-	err = snd_pcm_hw_params_any(handle, params);
-	if (err < 0) {
-		printf("Broken configuration for playback: no configurations available: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* set hardware resampling */
-	err = snd_pcm_hw_params_set_rate_resample(handle, params, alsa_resample);
-	if (err < 0) {
-		printf("Resampling setup failed for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* set the interleaved read/write format */
-	err = snd_pcm_hw_params_set_access(handle, params, access);
-	if (err < 0) {
-		printf("Access type not available for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* set the sample format */
-	err = snd_pcm_hw_params_set_format(handle, params, alsa_format);
-	if (err < 0) {
-		printf("Sample format not available for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* set the count of channels */
-	err = snd_pcm_hw_params_set_channels(handle, params, alsa_channels);
-	if (err < 0) {
-		printf("Channels count (%u) not available for playbacks: %s\n", alsa_channels, snd_strerror(err));
-		return err;
-	}
-	/* set the stream rate */
-	rrate = alsa_rate;
-	err = snd_pcm_hw_params_set_rate_near(handle, params, &rrate, 0);
-	if (err < 0) {
-		printf("Rate %uHz not available for playback: %s\n", alsa_rate, snd_strerror(err));
-		return err;
-	}
-	if (rrate != alsa_rate) {
-		printf("Rate doesn't match (requested %uHz, get %iHz)\n", alsa_rate, err);
-		return -EINVAL;
-	}
-	/* set the buffer time */
-	err = snd_pcm_hw_params_set_buffer_time_near(handle, params, &alsa_buffer_time, &dir);
-	if (err < 0) {
-		printf("Unable to set buffer time %u for playback: %s\n", alsa_buffer_time, snd_strerror(err));
-		return err;
-	}
-	err = snd_pcm_hw_params_get_buffer_size(params, &size);
-	if (err < 0) {
-		printf("Unable to get buffer size for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	alsa_buffer_size = size;
-	/* set the period time */
-	err = snd_pcm_hw_params_set_period_time_near(handle, params, &alsa_period_time, &dir);
-	if (err < 0) {
-		printf("Unable to set period time %u for playback: %s\n", alsa_period_time, snd_strerror(err));
-		return err;
-	}
-	err = snd_pcm_hw_params_get_period_size(params, &size, &dir);
-    printf("here is period size: %d\n", size);
-	if (err < 0) {
-		printf("Unable to get period size for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	alsa_period_size = size;
-	/* write the parameters to device */
-	err = snd_pcm_hw_params(handle, params);
-	if (err < 0) {
-		printf("Unable to set hw params for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	return 0;
-}
-
-static int set_swparams(snd_pcm_t *handle, snd_pcm_sw_params_t *swparams)
-{
-	int err;
-
-	/* get the current swparams */
-	err = snd_pcm_sw_params_current(handle, swparams);
-	if (err < 0) {
-		printf("Unable to determine current swparams for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* start the transfer when the buffer is almost full: */
-	/* (buffer_size / avail_min) * avail_min */
-	err = snd_pcm_sw_params_set_start_threshold(handle, swparams, (alsa_buffer_size / alsa_period_size) * alsa_period_size);
-	if (err < 0) {
-		printf("Unable to set start threshold mode for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* allow the transfer when at least period_size samples can be processed */
-	/* or disable this mechanism when period event is enabled (aka interrupt like style processing) */
-	err = snd_pcm_sw_params_set_avail_min(handle, swparams, alsa_period_event ? alsa_buffer_size : alsa_period_size);
-	if (err < 0) {
-		printf("Unable to set avail min for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	/* enable period events when requested */
-	if (alsa_period_event) {
-		err = snd_pcm_sw_params_set_period_event(handle, swparams, 1);
-		if (err < 0) {
-			printf("Unable to set period event: %s\n", snd_strerror(err));
-			return err;
-		}
-	}
-	/* write the parameters to the playback device */
-	err = snd_pcm_sw_params(handle, swparams);
-	if (err < 0) {
-		printf("Unable to set sw params for playback: %s\n", snd_strerror(err));
-		return err;
-	}
-	return 0;
-}
-
-
-
-/*static double filter_coeff[] = {0.0089931  , 0.0130025 ,  0.0243939 ,  0.0415180  , 0.0618060 ,  0.0821686,
-
-
-   0.0994795  , 0.1110679  , 0.1151410  , 0.1110679  , 0.0994795 ,  0.0821686,
-
-
-   0.0618060  , 0.0415180  , 0.0243939  , 0.0130025  , 0.0089931};*/
-
-
-
-/*static double filter_coeff[] =  {0.0084133,   0.0123980,   0.0236427  , 0.0407934 ,  0.0614051,   0.0823389,
-
-
-   0.1002953 ,  0.1123879  , 0.1166509  , 0.1123879  , 0.1002953  , 0.0823389,
-
-
-   0.0614051 ,  0.0407934  , 0.0236427  , 0.0123980  , 0.0084133};*/
-/*HAMMING WINDOWS
-
-static double filter_coeff_one[] = {
-
-   0.00090174 , -0.00122372 , -0.00259346 ,  0.00015865 ,  0.00593905 ,  0.00505216,
-  -0.00779030 , -0.01661391  , 0.00055036  , 0.03073152 , 0.02468720 , -0.03482811,
-  -0.07667645 ,  0.00092075  , 0.19799610 ,  0.37278845  , 0.37278845  , 0.19799610,
-   0.00092075 , -0.07667645 , -0.03482811  , 0.02468720  , 0.03073152  , 0.00055036,
-  -0.01661391 , -0.00779030 ,  0.00505216  , 0.00593905  , 0.00015865 , -0.00259346,
-  -0.00122372  , 0.00090174};
-
-static double filter_coeff_two[] =  {
-
-   0.0035064 ,  0.0041117,   0.0056349  , 0.0081237  , 0.0115681 ,  0.0158981,
-   0.0209849 ,  0.0266465,   0.0326567  , 0.0387574  , 0.0446729 ,  0.0501256,
-   0.0548529 ,  0.0586223,   0.0612460  , 0.0625919  , 0.0625919 ,  0.0612460,
-   0.0586223 ,  0.0548529,   0.0501256  , 0.0446729  , 0.0387574 ,  0.0326567,
-   0.0266465 ,  0.0209849,   0.0158981  , 0.0115681  , 0.0081237 ,  0.0056349,
-   0.0041117 ,  0.0035064};
-
-*/
-
-/*HANN FILTERS*/
-/*static double filter_coeff_one[] = {   //fir1(31, 0.40, hann(32)) - 200 khz LPF for 1 MHZ Sample Rate
-0 , -0.0001399197965195086 , -0.0008950810629727927 , 8742626383513622e-06 , 0.004135852013672227 , 0.004006272853916026 ,
--0.006678827421515506 , -0.01497058466941438 , 0.000512691552787154 , 0.02929364983182565 , 0.02391674781831519 ,
--0.03413285432352392 , -0.0757609307646617 , 0.0009148289740002024 , 0.1974081154536128  ,0.3723026132766434,
-0.3723026132766434 , 0.1974081154536128 , 0.0009148289740002029 , -0.07576093076466171 , -0.03413285432352392,
-0.02391674781831519 , 0.02929364983182567 , 0.0005126915527871541 , -0.01497058466941438 , -0.006678827421515507 ,
-0.004006272853916026 , 0.004135852013672227 , 8.742626383513622e-05 , -0.0008950810629727927 , -0.0001399197965195101,  0};
-
-static double filter_coeff_two[] = {  //b= fir1(31, 0.030, hann(32)) - 15 khz LPF for 1 MHZ Sample Rate
-    0 , 0.0005051411679387109 , 0.002089594353849786 , 0.004810076198912362 , 0.008655822211457952 , 0.0135458518415099 ,
-    0.0193307527750162 , 0.02579898865630902 , 0.03268742235850073 , 0.03969545120993109 , 0.04650189261729837 ,
-    0.05278355716806539 , 0.05823431650233354 , 0.062583424936726 , 0.06561189111971738,  0.0671658168824335,
-    0.0671658168824335 , 0.06561189111971739 , 0.062583424936726 , 0.05823431650233355 , 0.05278355716806541,
-    0.04650189261729837 , 0.03969545120993111 , 0.03268742235850076,0.02579898865630902  ,0.0193307527750162,
-    0.0135458518415099 , 0.008655822211457954 , 0.004810076198912363 , 0.002089594353849786 , 0.0005051411679387163 , 0};
-
-*/
 
 static double filter_coeff_one[] = {   //fir1(31, 0.40, hann(32)) - 200 khz LPF for 1102500 Hz sample rate
     0 , -0.0001570993780150857 , 0.0003381932094938418 , 0.002275299083516856 , 0.00208612366364782 , -0.004208593800586378 ,
@@ -409,41 +184,7 @@ int main(int argc, char** argv)
     //if (LMS_SetTestSignal(device, LMS_CH_RX, 0, LMS_TESTSIG_NCODIV8, 0, 0) != 0)
         //error();
 
-
-    //ALSA SETUP
-
-    
-	int err, morehelp;
-	snd_pcm_hw_params_t *alsa_hwparams;
-	snd_pcm_sw_params_t *alsa_swparams;
-	int method = 0;
-	short *alsa_samples;
-	snd_pcm_channel_area_t *alsa_areas;
-
-	snd_pcm_hw_params_alloca(&alsa_hwparams);
-	snd_pcm_sw_params_alloca(&alsa_swparams);
-
-    err = snd_output_stdio_attach(&alsa_output, stdout, 0);
-	if (err < 0) {
-		printf("Output failed: %s\n", snd_strerror(err));
-		return 0;
-	}
-
-    if ((err = snd_pcm_open(&alsa_handle, audio_device, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK)) < 0) {
-		printf("Playback open error: %s\n", snd_strerror(err));
-        error();
-		return 0;
-	}
-
-    if ((err = set_hwparams(alsa_handle, alsa_hwparams, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-		printf("Setting of hwparams failed: %s\n", snd_strerror(err));
-		error();
-	}
-	if ((err = set_swparams(alsa_handle, alsa_swparams)) < 0) {
-		printf("Setting of swparams failed: %s\n", snd_strerror(err));
-		error();
-	}
-	
+    auto alsoStreamer = std::make_unique<AlsaStreamer>();
 
     //Streaming Setup
 
@@ -600,29 +341,7 @@ int main(int argc, char** argv)
         fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
 #else
 #if STREAM_ALSA
-        alsa_samples = (short *) downsampled_audio;
-        int cptr = 200;
-        while (cptr > 0) {
-            //err = 4000;
-            //printf("Trying write\n");
-			err = snd_pcm_writei(alsa_handle, alsa_samples, cptr);
-            //printf("wrote this many: %d\n", err);
-			if (err == -EAGAIN)
-				continue;
-			if (err < 0) {
-                printf("GOt an error in pcm write: %d\n", err);
-				if (xrun_recovery(alsa_handle, err) < 0) {
-					printf("Write error: %s\n", snd_strerror(err));
-                    break;
-				}
-			}
-            else {
-			    alsa_samples += err * alsa_channels;
-			    cptr -= err;
-            }
-		}
-        //err = 1;
-        if (err < 0) {
+        if (alsaStreamer->writeSamples((short *) downsampled_audio) < 0) {
             break;
         }
 #endif
@@ -659,7 +378,8 @@ int main(int argc, char** argv)
 
     //Close device
     LMS_Close(device);
-    snd_pcm_close(alsa_handle);
+
+    alsaStreamer.release();
     
     printf("Here is my max value after demod: %f\n", my_max);
     
