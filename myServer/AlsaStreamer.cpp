@@ -1,6 +1,5 @@
 #include <AlsaStreamer.hpp>
 
-
 int AlsaStreamer::xrun_recovery(snd_pcm_t *handle, int err)
 {
 	if (err == -EPIPE) {	/* under-run */
@@ -150,47 +149,45 @@ int AlsaStreamer::set_swparams(snd_pcm_t *handle, snd_pcm_sw_params_t *swparams)
 }
 
 
-AlsaStreamer::AlsaStreamer(std::string audio_device) {
-	int err, morehelp;
+AlsaStreamer::AlsaStreamer(std::string audio_device, int sample_rate, int samples_per_period) {
+	this->alsa_rate = sample_rate;
+	this->samples_per_period = samples_per_period;
+
 	snd_pcm_hw_params_t *alsa_hwparams;
 	snd_pcm_sw_params_t *alsa_swparams;
-	int method = 0;
-	short *alsa_samples;
-	snd_pcm_channel_area_t *alsa_areas;
 
 	snd_pcm_hw_params_alloca(&alsa_hwparams);
 	snd_pcm_sw_params_alloca(&alsa_swparams);
 
-    err = snd_output_stdio_attach(&alsa_output, stdout, 0);
-	if (err < 0) {
+	if (snd_output_stdio_attach(&alsa_output, stdout, 0); < 0) {
 		printf("Output failed: %s\n", snd_strerror(err));
-		return 0;
+		snd_pcm_close(alsa_handle);
+        exit(-1);
 	}
 
-    if ((err = snd_pcm_open(&alsa_handle, audio_device, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK)) < 0) {
+    if (snd_pcm_open(&alsa_handle, audio_device.c_str(), SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK) < 0) {
 		printf("Playback open error: %s\n", snd_strerror(err));
-        error();
-		return 0;
+        snd_pcm_close(alsa_handle);
+        exit(-1);
 	}
 
-    if ((err = set_hwparams(alsa_handle, alsa_hwparams, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
+    if (set_hwparams(alsa_handle, alsa_hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
 		printf("Setting of hwparams failed: %s\n", snd_strerror(err));
-		error();
+		snd_pcm_close(alsa_handle);
+        exit(-1);
 	}
-	if ((err = set_swparams(alsa_handle, alsa_swparams)) < 0) {
+	if (set_swparams(alsa_handle, alsa_swparams) < 0) {
 		printf("Setting of swparams failed: %s\n", snd_strerror(err));
-		error();
+		snd_pcm_close(alsa_handle);
+        exit(-1);
 	}
 }
 
 int AlsaStreamer::writeSamples(const short * samples) {
-	int cptr = 200;
+	int cptr = samples_per_period;
 	int err = 0;
     while (cptr > 0) {
-        //err = 4000;
-        //printf("Trying write\n");
-		err = snd_pcm_writei(alsa_handle, alsa_samples, cptr);
-        //printf("wrote this many: %d\n", err);
+		err = snd_pcm_writei(alsa_handle, samples, cptr);
 		if (err == -EAGAIN)
 			continue;
 		if (err < 0) {
@@ -201,7 +198,7 @@ int AlsaStreamer::writeSamples(const short * samples) {
 			}
 		}
         else {
-		    alsa_samples += err * alsa_channels;
+		    samples += err * alsa_channels;
 		    cptr -= err;
         }
 	}

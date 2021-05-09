@@ -10,7 +10,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <AudioSink.hpp>
+#include <WAVWriter.hpp>
+#include <AlsaStreamer.hpp>
 #include <IQWebSocketServer.hpp>
+
 #ifdef USE_GNU_PLOT
 #include "gnuPlotPipe.h"
 #endif
@@ -31,21 +35,6 @@ static double mono_band = 15000;
 static double sample_rate = 1102500;
 static double max_difference = ((mono_band/sample_rate) * 2 * M_PI);
 
-static const char wav_chunk_id[] = {0x52, 0x49, 0x46, 0x46};
-static uint32_t wav_chunk_size = 0;
-static const char wav_format[] = {0x57, 0x41, 0x56, 0x45};
-static const char wav_subchunk_one_id[] = {0x66, 0x6d, 0x74, 0x20};
-static uint32_t wav_subchunk_one_size = 16;
-static uint16_t wav_audio_format = 1;
-static uint16_t wav_num_channels = 1;
-static uint32_t wav_sample_rate = (int) (sample_rate / 25);
-static uint32_t wav_byte_rate = wav_sample_rate * 2; //2 = 16/8 = bits_per_sample / bits_per_byte
-static uint16_t wav_block_align = 2;
-static uint16_t wav_bits_per_sample = 16;
-static const char wav_subchunk_two_id[] = {0x64, 0x61, 0x74, 0x61};
-static uint32_t wav_subchunk_two_size = 0;
-
-
 
 static double filter_coeff_one[] = {   //fir1(31, 0.40, hann(32)) - 200 khz LPF for 1102500 Hz sample rate
     0 , -0.0001570993780150857 , 0.0003381932094938418 , 0.002275299083516856 , 0.00208612366364782 , -0.004208593800586378 ,
@@ -64,25 +53,6 @@ static double filter_coeff_two[] = {   //b= fir1(31, 0.02721088435, hann(32)) - 
 };
 static int filter_order = 32;
 
-
-
-void initialize_wav_file(FILE * myFile) {
-    fwrite(wav_chunk_id, 1, 4, myFile);
-    fwrite(&wav_chunk_size, 4, 1, myFile);
-    fwrite(wav_format, 1, 4, myFile);
-    fwrite(wav_subchunk_one_id, 1, 4, myFile);
-    fwrite(&wav_subchunk_one_size, 4, 1, myFile);
-    fwrite(&wav_audio_format, 2, 1, myFile);
-    fwrite(&wav_num_channels, 2, 1, myFile);
-    fwrite(&wav_sample_rate, 4, 1, myFile);
-    fwrite(&wav_byte_rate, 4, 1, myFile);
-    fwrite(&wav_block_align, 2, 1, myFile);
-    fwrite(&wav_bits_per_sample, 2, 1, myFile);
-    fwrite(wav_subchunk_two_id, 1, 4, myFile);
-    fwrite(&wav_subchunk_two_size, 4, 1, myFile);
-}
-
-
 void unwrap_array(double *in, double *out, int len) {
     out[0] = in[0];
     for (int i = 1; i < len; i++) {
@@ -91,6 +61,9 @@ void unwrap_array(double *in, double *out, int len) {
         out[i] = out[i-1] + d;
     }
 }
+
+  
+
 
 //Device structure, should be initialize to NULL
 lms_device_t* device = NULL;
@@ -105,13 +78,16 @@ int error()
 
 int main(int argc, char** argv)
 {
-#if USE_WAV    
-    FILE *fp;
+	CommandLine(argc, argv);
 
-    fp = fopen("./radio.wav", "wb+");
+	std::unique_ptr<AudioSink> audioWriter;
 
-    initialize_wav_file(fp);
-#endif
+	if (CommmandLine.audio = wav) {
+		audioWriter = std::make_unique<WAVWriter>();
+	}
+	else {
+		audioWriter = std::make_unique<AlsaStreamer>();
+	}
 
     //Find devices
     int n;
@@ -354,11 +330,7 @@ int main(int argc, char** argv)
             memcpy(buffer, &(buffer[10000]),2*(4 * filter_order + 2));
         }
 
-	//I and Q samples are interleaved in buffer: IQIQIQ...
-        //printf("Received %d samples\n", samplesRead);
-	/*
-		INSERT CODE FOR PROCESSING RECEIVED SAMPLES
-	*/
+
 #ifdef USE_GNU_PLOT
     /*
         //Plot samples
