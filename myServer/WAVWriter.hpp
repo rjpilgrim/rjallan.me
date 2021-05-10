@@ -1,5 +1,6 @@
 #pragma once
 #include <stdio.h>
+#include <AudioSink.hpp>
 
 class WAVWriter : AudioSink {
 public:
@@ -10,6 +11,7 @@ public:
 	WAVWriter & operator=(WAVWriter &&) = delete;
 
 	WAVWriter(std::string file_name = "./radio.wav", int sample_rate = 44100, int samples_per_period = 200);
+	~WAVWriter();
 
 	int writeSamples(const short * samples) override;
 

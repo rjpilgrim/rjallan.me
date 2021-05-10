@@ -124,31 +124,10 @@ int main(int argc, char** argv)
     if (LMS_SetSampleRate(device, sample_rate, 2) != 0)
         error();
 
-    double myBandWidthBefore;
-    double bandWidthAfter;
-
-    if (LMS_GetLPFBW(device, LMS_CH_RX, my_channel, &myBandWidthBefore) != 0)
-        error();
-
-    if (LMS_SetLPFBW(device, LMS_CH_RX, my_channel, 10e6/*2.51e6*/) != 0)
+    if (LMS_SetLPFBW(device, LMS_CH_RX, my_channel, 10e6) != 0)
         error(); 
 
-    if (LMS_GetLPFBW(device, LMS_CH_RX, my_channel, &bandWidthAfter) != 0)
-        error();
-
-
-    LMS_SetNormalizedGain(device, LMS_CH_RX, my_channel, 0.9);
-
-    double mygain;
-
-    unsigned int gaindB;
-
-
     LMS_Calibrate(device, LMS_CH_RX, my_channel, 10e6, 0);
-
-    LMS_GetNormalizedGain(device, LMS_CH_RX, my_channel, &mygain);
-
-    printf("here is my gain after calib: %f\n", mygain);
 
     lms_stream_meta_t my_stream_data;
 
@@ -159,8 +138,6 @@ int main(int argc, char** argv)
     //To receive data from RF, remove this line or change signal to LMS_TESTSIG_NONE
     //if (LMS_SetTestSignal(device, LMS_CH_RX, 0, LMS_TESTSIG_NCODIV8, 0, 0) != 0)
         //error();
-
-    auto alsoStreamer = std::make_unique<AlsaStreamer>();
 
     //Streaming Setup
 
@@ -186,27 +163,17 @@ int main(int argc, char** argv)
     LMS_StartStream(&streamId);
 
     double my_max = 0;
-#if USE_WAV
-    double my_avg = 0;
-    double global_avg = 0;
-    int count = 0;
-    long big_freq_count = 0;
-    long normal = 0;
-#endif
+
     //Streaming
-#ifdef USE_GNU_PLOT
     /*
     GNUPlotPipe gp;
     gp.write("set size square\n set xrange[-2050:2050]\n set yrange[-2050:2050]\n");
     //gp.write("set size square\n set xrange[-100:100]\n set yrange[-100:100]\n");
     */
-#endif
+
     auto t1 = chrono::high_resolution_clock::now();
-#if USE_WAV
-    while ((chrono::high_resolution_clock::now() - t1 < chrono::seconds(12)))
-#else
-    while (true)
-#endif
+
+    while ( ((CommandLine.audio == alsa) ? true : false) || (chrono::high_resolution_clock::now() - t1 < chrono::seconds(12)) )
     {
         
         
@@ -222,10 +189,7 @@ int main(int argc, char** argv)
             memcpy(buffer, &(buffer[10000]),2*(4 * filter_order + 2));
         }
         else {  
-#if USE_WAV
-        count++;
-        my_avg = 0;
-#endif
+
         double bufferFiltered[sampleCnt * 2 + 2 * filter_order + 2] = {0};
 
         double wrapped[sampleCnt+filter_order + 1] = {0};
@@ -237,91 +201,72 @@ int main(int argc, char** argv)
         //printf("Received buffer with %d samples with first sample %lu microseconds\n", samplesRead, my_stream_data.timestamp);
         try {
 
-        for (int i = filter_order; i < (samplesRead+((4*filter_order + 2)/2)); ++i) {
-            for (int j = i-filter_order, x = 0; j < i; ++j, ++x) {
-                bufferFiltered[2*i-(2*filter_order)] = bufferFiltered[2*i-(2*filter_order)] + buffer[2*j] * filter_coeff_one[x];
-                bufferFiltered[2*i+1-(2*filter_order)] = bufferFiltered[2*i+1-(2*filter_order)] + buffer[2*j+1] * filter_coeff_one[x];
-            }
-            /*bufferFiltered[2*i-34] = buffer[2*i];
-            bufferFiltered[2*i-34+1] = buffer[2*i+1];*/
-        }
+	        for (int i = filter_order; i < (samplesRead+((4*filter_order + 2)/2)); ++i) {
+	            for (int j = i-filter_order, x = 0; j < i; ++j, ++x) {
+	                bufferFiltered[2*i-(2*filter_order)] = bufferFiltered[2*i-(2*filter_order)] + buffer[2*j] * filter_coeff_one[x];
+	                bufferFiltered[2*i+1-(2*filter_order)] = bufferFiltered[2*i+1-(2*filter_order)] + buffer[2*j+1] * filter_coeff_one[x];
+	            }
+	            /*bufferFiltered[2*i-34] = buffer[2*i];
+	            bufferFiltered[2*i-34+1] = buffer[2*i+1];*/
+	        }
 
 
-        //my_server->writeToBuffer(*reinterpret_cast<double(*)[10000]>(&(bufferFiltered[2 * filter_order + 2])));
+	        //my_server->writeToBuffer(*reinterpret_cast<double(*)[10000]>(&(bufferFiltered[2 * filter_order + 2])));
 
-        my_server->writeToBuffer((&(bufferFiltered[2 * filter_order + 2])));
+	        my_server->writeToBuffer((&(bufferFiltered[2 * filter_order + 2])));
 
-        int samplesFiltered = samplesRead+filter_order + 1;
+	        int samplesFiltered = samplesRead+filter_order + 1;
 
-        for (int i = 0; i < (samplesFiltered); ++i) {
-            double first = atan2( (double) bufferFiltered[2*i+1], (double) bufferFiltered[2*i]);
-            //double second = atan2((double) buffer[2*i+3], (double) buffer[2*i+2]);
-            //double rate = second - first;
-            wrapped[i] = first;
-        }
+	        for (int i = 0; i < (samplesFiltered); ++i) {
+	            double first = atan2( (double) bufferFiltered[2*i+1], (double) bufferFiltered[2*i]);
+	            //double second = atan2((double) buffer[2*i+3], (double) buffer[2*i+2]);
+	            //double rate = second - first;
+	            wrapped[i] = first;
+	        }
 
-        unwrap_array(wrapped, unwrapped, (samplesFiltered));
+	        unwrap_array(wrapped, unwrapped, (samplesFiltered));
 
-        for (int i = 0; i < (samplesFiltered-1); ++i) {
-            difference[i] = unwrapped[i+1] - unwrapped[i];
-            if (difference[i] > ((200e3/sample_rate) * 2 * M_PI)) {
-                //difference[i] = ((mono_band/sample_rate) * 2 * M_PI);
-                super_max++;
-            }
-        }
+	        for (int i = 0; i < (samplesFiltered-1); ++i) {
+	            difference[i] = unwrapped[i+1] - unwrapped[i];
+	            if (difference[i] > ((200e3/sample_rate) * 2 * M_PI)) {
+	                //difference[i] = ((mono_band/sample_rate) * 2 * M_PI);
+	                super_max++;
+	            }
+	        }
 
 
-        for (int i = filter_order; i < (samplesFiltered-1); ++i) {
-            /*convert_to_pcm[i] = (int) ceil(difference[i] * (MAX_PCM /  max_difference));
-            if (convert_to_pcm[i] > MAX_PCM) {
-                printf("I got a maxed out sample\n");
-                convert_to_pcm[i] = MAX_PCM;
-            }*/
-            for (int j = i-filter_order, x = 0; j < i; ++j, ++x) {
-                convert_to_pcm[i-filter_order] =  convert_to_pcm[i-filter_order] + difference[j] * filter_coeff_two[x];
-            }
-            if (convert_to_pcm[i-filter_order]>my_max) {
-                my_max = convert_to_pcm[i-filter_order];
-            }
-#if USE_WAV
-            if (convert_to_pcm[i-filter_order]>0.1) {
-                big_freq_count++;
-            }
-            else {
-                normal++;
-            }
-            my_avg += convert_to_pcm[i-filter_order];            
-        }
-        my_avg = my_avg / (samplesFiltered-1);
-        global_avg += my_avg;
-#else
-        }
-#endif
+	        for (int i = filter_order; i < (samplesFiltered-1); ++i) {
+	            /*convert_to_pcm[i] = (int) ceil(difference[i] * (MAX_PCM /  max_difference));
+	            if (convert_to_pcm[i] > MAX_PCM) {
+	                printf("I got a maxed out sample\n");
+	                convert_to_pcm[i] = MAX_PCM;
+	            }*/
+	            for (int j = i-filter_order, x = 0; j < i; ++j, ++x) {
+	                convert_to_pcm[i-filter_order] =  convert_to_pcm[i-filter_order] + difference[j] * filter_coeff_two[x];
+	            }
+	            if (convert_to_pcm[i-filter_order]>my_max) {
+	                my_max = convert_to_pcm[i-filter_order];
+	            }
+	        }
 
-        for (int i = 0; i < ((samplesRead)/25); ++i) {
-            //downsampled_audio[i] = convert_to_pcm[i*25];
-            downsampled_audio[i] = (int16_t) ceil((convert_to_pcm[i * 25] - 0.0075) * (MAX_PCM ));
-            //downsampled_audio[i] = ceil((convert_to_pcm[i * 25]) * (MAX_PCM/3));
-            //downsampled_audio[i] = (uint16_t) convert_to_pcm[i * 25] * 20;
-            //if (convert_to_pcm[i * 25] * 20 > MAX_PCM) {
-            if (downsampled_audio[i] >= MAX_PCM) {
-                printf("I got a maxed out sample: %d from %f\n", downsampled_audio[i], convert_to_pcm[i * 25]);
-                downsampled_audio[i] = MAX_PCM;
-            }
-#if USE_WAV    
-            audio_sample_count++;
-#endif
-        }
+	        for (int i = 0; i < ((samplesRead)/25); ++i) {
+	            //downsampled_audio[i] = convert_to_pcm[i*25];
+	            downsampled_audio[i] = (int16_t) ceil((convert_to_pcm[i * 25] - 0.0075) * (MAX_PCM ));
+	            //downsampled_audio[i] = ceil((convert_to_pcm[i * 25]) * (MAX_PCM/3));
+	            //downsampled_audio[i] = (uint16_t) convert_to_pcm[i * 25] * 20;
+	            //if (convert_to_pcm[i * 25] * 20 > MAX_PCM) {
+	            if (downsampled_audio[i] >= MAX_PCM) {
+	                printf("I got a maxed out sample: %d from %f\n", downsampled_audio[i], convert_to_pcm[i * 25]);
+	                downsampled_audio[i] = MAX_PCM;
+	            }
 
-#if USE_WAV
-        fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
-#else
-#if STREAM_ALSA
-        if (alsaStreamer->writeSamples((short *) downsampled_audio) < 0) {
-            break;
-        }
-#endif
-#endif
+	        }
+	        fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
+
+	        if (audioWriter->writeSamples((short *) downsampled_audio) < 0) {
+	            break;
+	        }
+
         }
         catch (int e) {
             printf("I got an exception: %d\n", e);
@@ -330,8 +275,6 @@ int main(int argc, char** argv)
             memcpy(buffer, &(buffer[10000]),2*(4 * filter_order + 2));
         }
 
-
-#ifdef USE_GNU_PLOT
     /*
         //Plot samples
         gp.write("plot '-' with points\n");
@@ -341,7 +284,6 @@ int main(int argc, char** argv)
         gp.flush();
     */
     
-#endif
     
     }
     //Stop streaming
@@ -351,30 +293,9 @@ int main(int argc, char** argv)
     //Close device
     LMS_Close(device);
 
-    alsaStreamer.release();
+    audioWriter.release();
     
-    printf("Here is my max value after demod: %f\n", my_max);
     
-
-#if USE_WAV
-    global_avg = global_avg / count;
-    printf("here is my average: %f\n", global_avg);
-    printf("here are my outliers: %ld\n", big_freq_count);
-    printf("Here are normal samples: %ld\n", normal);
-    printf("Here is my number of audiosamples: %d\n", audio_sample_count);
-    printf("Here is my .wav sample rate: %d\n", wav_sample_rate);
-
-    wav_chunk_size = 36 + (audio_sample_count * 2);
-    wav_subchunk_two_size = (audio_sample_count * 2);
-
-    
-    fseek(fp, 4, SEEK_SET);
-    fwrite(&wav_chunk_size, 4, 1, fp);
-    fseek(fp, 40, SEEK_SET);
-    fwrite(&wav_subchunk_two_size, 4, 1, fp);
-
-    fclose(fp);
-#endif
 
     return 0;
 }
