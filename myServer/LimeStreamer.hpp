@@ -1,6 +1,6 @@
 #include "lime/LimeSuite.h"
 
-class LimeStreamer : RadioStreamer {
+class LimeStreamer : public RadioStreamer {
 public:
 	int openDevice() override;
 	int setFrequency(uint64_t frequency) override;

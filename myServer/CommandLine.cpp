@@ -21,25 +21,25 @@ CommandLine::CommandLine(int argc,  char** argv) {
 		po::notify(vm);  
 
 		if (vm.count("help")) {
-            cout << desc << "\n";
-            return 0;
+            std::cout << desc << "\n";
+            return;
         }
 
         if (vm.count("radio")) {
             if (vm["radio"].as<std::string>() == "lime") {
-            	radio = lime
+            	radio = lime;
             }
             if (vm["radio"].as<std::string>() == "hackrf") {
-            	radio = hackrf
+            	radio = hackrf;
             }
         } 
 
         if (vm.count("audio")) {
             if (vm["radio"].as<std::string>() == "wav") {
-            	audio = wav
+            	audio = wav;
             }
             if (vm["radio"].as<std::string>() == "alsa") {
-            	audio = alsa
+            	audio = alsa;
             }
         } 
 	}

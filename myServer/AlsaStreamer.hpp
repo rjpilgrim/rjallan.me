@@ -1,8 +1,9 @@
 #pragma once
 #include <alsa/asoundlib.h>
+#include <string>
 #include <AudioSink.hpp>
 
-class AlsaStreamer : AudioSink {
+class AlsaStreamer : public AudioSink {
 public:
 	AlsaStreamer() = delete;
 	AlsaStreamer(const AlsaStreamer&) = delete;

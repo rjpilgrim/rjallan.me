@@ -1,14 +1,15 @@
 #pragma once
 #include <stdio.h>
+#include <string>
 #include <AudioSink.hpp>
 
-class WAVWriter : AudioSink {
+class WAVWriter : public AudioSink {
 public:
 	WAVWriter() = delete;
-	WAVWriter(const WAVWriter&) = delete;
-	WAVWriter& operator=(const WAVWriter &) = delete;
-	WAVWriter(WAVWriter &&) = delete;
-	WAVWriter & operator=(WAVWriter &&) = delete;
+	WAVWriter(const WAVWriter&) = default;
+	WAVWriter& operator=(const WAVWriter &) = default;
+	WAVWriter(WAVWriter &&) = default;
+	WAVWriter & operator=(WAVWriter &&) = default;
 
 	WAVWriter(std::string file_name = "./radio.wav", int sample_rate = 44100, int samples_per_period = 200);
 	~WAVWriter();

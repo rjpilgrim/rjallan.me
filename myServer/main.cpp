@@ -14,17 +14,13 @@
 #include <WAVWriter.hpp>
 #include <AlsaStreamer.hpp>
 #include <IQWebSocketServer.hpp>
+#include <CommandLine.hpp>
 
 #ifdef USE_GNU_PLOT
 #include "gnuPlotPipe.h"
 #endif
 
-#define USE_WAV 0
-#define STREAM_ALSA 1
-
-
 #define MAX_PCM 32767
-
 
 using namespace std;
 
@@ -62,32 +58,31 @@ void unwrap_array(double *in, double *out, int len) {
     }
 }
 
-  
-
-
 //Device structure, should be initialize to NULL
 lms_device_t* device = NULL;
 
 int error()
 {
-    snd_pcm_close(alsa_handle);
+    /*snd_pcm_close(alsa_handle);
     if (device != NULL)
-        LMS_Close(device);
+        LMS_Close(device);*/
     exit(-1);
 }
 
 int main(int argc, char** argv)
 {
-	CommandLine(argc, argv);
+	CommandLine commandLine(argc, argv);
 
-	std::unique_ptr<AudioSink> audioWriter;
+	std::unique_ptr<AudioSink> audioWriter = std::make_unique<WAVWriter>(WAVWriter("./radio.wav"));
 
-	if (CommmandLine.audio = wav) {
+	//AudioSink * audioWriter = new WAVWriter("./radio.wav");
+
+	/*if (commandLine.audio = wav) {
 		audioWriter = std::make_unique<WAVWriter>();
 	}
 	else {
 		audioWriter = std::make_unique<AlsaStreamer>();
-	}
+	}*/
 
     //Find devices
     int n;
@@ -173,7 +168,7 @@ int main(int argc, char** argv)
 
     auto t1 = chrono::high_resolution_clock::now();
 
-    while ( ((CommandLine.audio == alsa) ? true : false) || (chrono::high_resolution_clock::now() - t1 < chrono::seconds(12)) )
+    while ( ((commandLine.audio == alsa) ? true : false) || (chrono::high_resolution_clock::now() - t1 < chrono::seconds(12)) )
     {
         
         
@@ -261,7 +256,7 @@ int main(int argc, char** argv)
 	            }
 
 	        }
-	        fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
+	        //fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
 
 	        if (audioWriter->writeSamples((short *) downsampled_audio) < 0) {
 	            break;

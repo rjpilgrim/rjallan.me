@@ -8,4 +8,4 @@ struct CommandLine {
 	audio_type audio = wav;
 
 	CommandLine(int argc,  char** argv);
-}
+};

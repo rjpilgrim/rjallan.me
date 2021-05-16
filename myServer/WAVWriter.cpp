@@ -1,6 +1,6 @@
 #include <WAVWriter.hpp>
 
-WAVWriter::initialize_wav_file(FILE * myFile) {
+void WAVWriter::initialize_wav_file(FILE * myFile) {
 	fwrite(wav_chunk_id, 1, 4, myFile);
     fwrite(&wav_chunk_size, 4, 1, myFile);
     fwrite(wav_format, 1, 4, myFile);
@@ -26,7 +26,7 @@ WAVWriter::WAVWriter(std::string file_name, int sample_rate, int samples_per_per
     initialize_wav_file(fp);
 }
 
-WAVWriter::writeSamples(const short * samples) {
+int WAVWriter::writeSamples(const short * samples) {
 	int written = fwrite(samples, 2, samples_per_period, fp);
 
 	audio_sample_count += samples_per_period;

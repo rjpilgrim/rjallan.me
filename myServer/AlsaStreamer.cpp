@@ -158,25 +158,26 @@ AlsaStreamer::AlsaStreamer(std::string audio_device, int sample_rate, int sample
 
 	snd_pcm_hw_params_alloca(&alsa_hwparams);
 	snd_pcm_sw_params_alloca(&alsa_swparams);
+	int err = 0;
 
-	if (snd_output_stdio_attach(&alsa_output, stdout, 0); < 0) {
+	if (err = snd_output_stdio_attach(&alsa_output, stdout, 0) < 0) {
 		printf("Output failed: %s\n", snd_strerror(err));
 		snd_pcm_close(alsa_handle);
         exit(-1);
 	}
 
-    if (snd_pcm_open(&alsa_handle, audio_device.c_str(), SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK) < 0) {
+    if (err = snd_pcm_open(&alsa_handle, audio_device.c_str(), SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK) < 0) {
 		printf("Playback open error: %s\n", snd_strerror(err));
         snd_pcm_close(alsa_handle);
         exit(-1);
 	}
 
-    if (set_hwparams(alsa_handle, alsa_hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
+    if (err = set_hwparams(alsa_handle, alsa_hwparams, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
 		printf("Setting of hwparams failed: %s\n", snd_strerror(err));
 		snd_pcm_close(alsa_handle);
         exit(-1);
 	}
-	if (set_swparams(alsa_handle, alsa_swparams) < 0) {
+	if (err = set_swparams(alsa_handle, alsa_swparams) < 0) {
 		printf("Setting of swparams failed: %s\n", snd_strerror(err));
 		snd_pcm_close(alsa_handle);
         exit(-1);
