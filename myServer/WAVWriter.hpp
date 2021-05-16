@@ -36,4 +36,4 @@ private:
 
 	void initialize_wav_file(FILE * myFile);
 
-}
+};

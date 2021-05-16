@@ -1,5 +1,6 @@
 #pragma once
 #include <alsa/asoundlib.h>
+#include <AudioSink.hpp>
 
 class AlsaStreamer : AudioSink {
 public:
@@ -9,7 +10,9 @@ public:
 	AlsaStreamer(AlsaStreamer &&) = delete;
 	AlsaStreamer & operator=(AlsaStreamer &&) = delete;
 
+
 	AlsaStreamer(std::string audio_device = "hw:0,1,0", int sample_rate = 44100, int samples_per_period = 200);
+    ~AlsaStreamer();
 
 	int writeSamples(const short * samples) override;
 
@@ -37,4 +40,4 @@ private:
 		snd_pcm_hw_params_t *params,
 		snd_pcm_access_t access);
 
-}
+};
