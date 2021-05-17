@@ -5,7 +5,6 @@
 
 class AlsaStreamer : public AudioSink {
 public:
-	AlsaStreamer() = delete;
 	AlsaStreamer(const AlsaStreamer&) = delete;
 	AlsaStreamer& operator=(const AlsaStreamer &) = delete;
 	AlsaStreamer(AlsaStreamer &&) = delete;
@@ -13,7 +12,7 @@ public:
 
 
 	AlsaStreamer(std::string audio_device = "hw:0,1,0", int sample_rate = 44100, int samples_per_period = 200);
-    ~AlsaStreamer();
+    ~AlsaStreamer() override;
 
 	int writeSamples(const short * samples) override;
 

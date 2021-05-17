@@ -13,24 +13,21 @@
 #include <AudioSink.hpp>
 #include <WAVWriter.hpp>
 #include <AlsaStreamer.hpp>
+#include <RadioStreamer.hpp>
+#include <LimeStreamer.hpp>
 #include <IQWebSocketServer.hpp>
 #include <CommandLine.hpp>
-
-#ifdef USE_GNU_PLOT
-#include "gnuPlotPipe.h"
-#endif
 
 #define MAX_PCM 32767
 
 using namespace std;
 
-/* LIME SDR Parameters */
-
 static int my_channel = 0;
 static double mono_band = 15000;
 static double sample_rate = 1102500;
 static double max_difference = ((mono_band/sample_rate) * 2 * M_PI);
-
+static std::unique_ptr<AudioSink> audioWriter;
+static std::unique_ptr<RadioStreamer> radioStreamer;
 
 static double filter_coeff_one[] = {   //fir1(31, 0.40, hann(32)) - 200 khz LPF for 1102500 Hz sample rate
     0 , -0.0001570993780150857 , 0.0003381932094938418 , 0.002275299083516856 , 0.00208612366364782 , -0.004208593800586378 ,
@@ -63,9 +60,9 @@ lms_device_t* device = NULL;
 
 int error()
 {
-    /*snd_pcm_close(alsa_handle);
+    audioWriter.release();
     if (device != NULL)
-        LMS_Close(device);*/
+        radioStreamer->closeDevice();
     exit(-1);
 }
 
@@ -73,77 +70,34 @@ int main(int argc, char** argv)
 {
 	CommandLine commandLine(argc, argv);
 
-	std::unique_ptr<AudioSink> audioWriter = std::make_unique<WAVWriter>(WAVWriter("./radio.wav"));
-
-	//AudioSink * audioWriter = new WAVWriter("./radio.wav");
-
-	/*if (commandLine.audio = wav) {
+	if (commandLine.audio = wav) {
 		audioWriter = std::make_unique<WAVWriter>();
 	}
 	else {
 		audioWriter = std::make_unique<AlsaStreamer>();
-	}*/
+	}
 
-    //Find devices
-    int n;
-    lms_info_str_t list[8]; //should be large enough to hold all detected devices
-    
-    if ((n = LMS_GetDeviceList(list)) < 0) //NULL can be passed to only get number of devices
-        error();
+	radioStreamer = std::make_unique<LimeStreamer>();
 
-    cout << "Devices found: " << n << endl; //print number of devices
-    if (n < 1)
-        return -1;
-
-    //open the first device
-    if (LMS_Open(&device, list[0], NULL))
-        error();
-
-    //Initialize device with default configuration
-    //Do not use if you want to keep existing configuration
-    //Use LMS_LoadConfig(device, "/path/to/file.ini") to load config from INI
-    if (LMS_Init(device) != 0)
-        error();
-
-    //Enable RX channel
-    //Channels are numbered starting at 0
-    if (LMS_EnableChannel(device, LMS_CH_RX, my_channel, true) != 0)
+    //open radio device
+    if (radioStreamer->openDevice() < 0)
         error();
 
     //Set center frequency to 800 MHz
-    if (LMS_SetLOFrequency(device, LMS_CH_RX, my_channel, 89.7e6) != 0)
+    if (radioStreamer->setFrequency(89.7e6) < 0)
         error();
 
-    //Set sample rate to 8 MHz, ask to use 2x oversampling in RF
-    //This set sampling rate for all channels
-    if (LMS_SetSampleRate(device, sample_rate, 2) != 0)
-        error();
-
-    if (LMS_SetLPFBW(device, LMS_CH_RX, my_channel, 10e6) != 0)
+    if (radioStreamer->setSampleRate(sample_rate) < 0)
         error(); 
 
-    LMS_Calibrate(device, LMS_CH_RX, my_channel, 10e6, 0);
-
-    lms_stream_meta_t my_stream_data;
+    if (radioStreamer->setFilterBandwidth(10e6) < 0)
+    	error();
 
     auto my_server = std::make_unique<IQWebSocketServer>(8079, "^/socket/?$");
     my_server->run();
 
-    //Enable test signal generation
-    //To receive data from RF, remove this line or change signal to LMS_TESTSIG_NONE
-    //if (LMS_SetTestSignal(device, LMS_CH_RX, 0, LMS_TESTSIG_NCODIV8, 0, 0) != 0)
-        //error();
-
-    //Streaming Setup
-
     //Initialize stream
-    lms_stream_t streamId; //stream structure
-    streamId.channel = my_channel; //channel number
-    streamId.fifoSize = 1024 * 1024; //fifo size in samples
-    streamId.throughputVsLatency = 1.0; //optimize for max throughput
-    streamId.isTx = false; //RX channel
-    streamId.dataFmt = lms_stream_t::LMS_FMT_I12; //12-bit integers
-    if (LMS_SetupStream(device, &streamId) != 0)
+    if (radioStreamer->setupStream() < 0)
         error();
 
     //Initialize data buffers
@@ -155,27 +109,16 @@ int main(int argc, char** argv)
     uint32_t audio_sample_count = 0;
 
     //Start streaming
-    LMS_StartStream(&streamId);
-
-    double my_max = 0;
-
-    //Streaming
-    /*
-    GNUPlotPipe gp;
-    gp.write("set size square\n set xrange[-2050:2050]\n set yrange[-2050:2050]\n");
-    //gp.write("set size square\n set xrange[-100:100]\n set yrange[-100:100]\n");
-    */
+    if (radioStreamer->startStream() < 0)
+        error();
 
     auto t1 = chrono::high_resolution_clock::now();
 
     while ( ((commandLine.audio == alsa) ? true : false) || (chrono::high_resolution_clock::now() - t1 < chrono::seconds(12)) )
-    {
-        
-        
-        
+    {   
         //Receive samples
-        int samplesRead = LMS_RecvStream(&streamId, &(buffer[4 * filter_order + 2]), sampleCnt, &my_stream_data, 1000);
-        int super_max = 0;
+        int samplesRead = radioStreamer->receiveSamples(&(buffer[4 * filter_order + 2]), sampleCnt);
+
         if (samplesRead != sampleCnt) {
             printf("Unexpected sample read\n");
             break;
@@ -201,12 +144,7 @@ int main(int argc, char** argv)
 	                bufferFiltered[2*i-(2*filter_order)] = bufferFiltered[2*i-(2*filter_order)] + buffer[2*j] * filter_coeff_one[x];
 	                bufferFiltered[2*i+1-(2*filter_order)] = bufferFiltered[2*i+1-(2*filter_order)] + buffer[2*j+1] * filter_coeff_one[x];
 	            }
-	            /*bufferFiltered[2*i-34] = buffer[2*i];
-	            bufferFiltered[2*i-34+1] = buffer[2*i+1];*/
 	        }
-
-
-	        //my_server->writeToBuffer(*reinterpret_cast<double(*)[10000]>(&(bufferFiltered[2 * filter_order + 2])));
 
 	        my_server->writeToBuffer((&(bufferFiltered[2 * filter_order + 2])));
 
@@ -214,8 +152,6 @@ int main(int argc, char** argv)
 
 	        for (int i = 0; i < (samplesFiltered); ++i) {
 	            double first = atan2( (double) bufferFiltered[2*i+1], (double) bufferFiltered[2*i]);
-	            //double second = atan2((double) buffer[2*i+3], (double) buffer[2*i+2]);
-	            //double rate = second - first;
 	            wrapped[i] = first;
 	        }
 
@@ -223,40 +159,20 @@ int main(int argc, char** argv)
 
 	        for (int i = 0; i < (samplesFiltered-1); ++i) {
 	            difference[i] = unwrapped[i+1] - unwrapped[i];
-	            if (difference[i] > ((200e3/sample_rate) * 2 * M_PI)) {
-	                //difference[i] = ((mono_band/sample_rate) * 2 * M_PI);
-	                super_max++;
-	            }
 	        }
 
-
 	        for (int i = filter_order; i < (samplesFiltered-1); ++i) {
-	            /*convert_to_pcm[i] = (int) ceil(difference[i] * (MAX_PCM /  max_difference));
-	            if (convert_to_pcm[i] > MAX_PCM) {
-	                printf("I got a maxed out sample\n");
-	                convert_to_pcm[i] = MAX_PCM;
-	            }*/
 	            for (int j = i-filter_order, x = 0; j < i; ++j, ++x) {
 	                convert_to_pcm[i-filter_order] =  convert_to_pcm[i-filter_order] + difference[j] * filter_coeff_two[x];
-	            }
-	            if (convert_to_pcm[i-filter_order]>my_max) {
-	                my_max = convert_to_pcm[i-filter_order];
 	            }
 	        }
 
 	        for (int i = 0; i < ((samplesRead)/25); ++i) {
-	            //downsampled_audio[i] = convert_to_pcm[i*25];
 	            downsampled_audio[i] = (int16_t) ceil((convert_to_pcm[i * 25] - 0.0075) * (MAX_PCM ));
-	            //downsampled_audio[i] = ceil((convert_to_pcm[i * 25]) * (MAX_PCM/3));
-	            //downsampled_audio[i] = (uint16_t) convert_to_pcm[i * 25] * 20;
-	            //if (convert_to_pcm[i * 25] * 20 > MAX_PCM) {
 	            if (downsampled_audio[i] >= MAX_PCM) {
-	                printf("I got a maxed out sample: %d from %f\n", downsampled_audio[i], convert_to_pcm[i * 25]);
 	                downsampled_audio[i] = MAX_PCM;
 	            }
-
 	        }
-	        //fwrite(downsampled_audio, 2, ((samplesRead)/25), fp);
 
 	        if (audioWriter->writeSamples((short *) downsampled_audio) < 0) {
 	            break;
@@ -269,28 +185,17 @@ int main(int argc, char** argv)
         }
             memcpy(buffer, &(buffer[10000]),2*(4 * filter_order + 2));
         }
-
-    /*
-        //Plot samples
-        gp.write("plot '-' with points\n");
-        for (int j = 0; j < samplesRead; ++j)
-            gp.writef("%i %i\n", buffer[2 * j], buffer[2 * j + 1]);
-        gp.write("e\n");
-        gp.flush();
-    */
-    
     
     }
     //Stop streaming
-    LMS_StopStream(&streamId); //stream is stopped but can be started again with LMS_StartStream()
-    LMS_DestroyStream(device, &streamId); //stream is deallocated and can no longer be used
+    radioStreamer->stopStream();
+    radioStreamer->destroyStream();
 
     //Close device
-    LMS_Close(device);
+    radioStreamer->closeDevice();
+    radioStreamer.release();
 
     audioWriter.release();
-    
-    
 
     return 0;
 }

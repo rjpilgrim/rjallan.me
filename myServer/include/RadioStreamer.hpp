@@ -1,3 +1,4 @@
+#pragma once
 class RadioStreamer {
 public:
 	virtual int openDevice() = 0;
@@ -12,7 +13,7 @@ public:
 
 	virtual int startStream() = 0;
 
-	virtual int receiveSamples(int16_t * buffer, int number_of_samples) = 0;
+	virtual int receiveSamples(int16_t * buffer, int numberOfSamples) = 0;
 
 	virtual int stopStream() = 0;
 
@@ -20,5 +21,4 @@ public:
 
 	virtual int closeDevice() = 0;
 
-	virtual ~RadioStreamer() = 0;
-}
+};

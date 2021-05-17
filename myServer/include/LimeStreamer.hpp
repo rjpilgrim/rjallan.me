@@ -1,4 +1,6 @@
+#pragma once
 #include "lime/LimeSuite.h"
+#include <RadioStreamer.hpp>
 
 class LimeStreamer : public RadioStreamer {
 public:
@@ -8,7 +10,7 @@ public:
 	int setFilterBandwidth(uint32_t bandwidth) override;
 	int setupStream() override;
 	int startStream() override;
-	int receiveSamples(int16_t * buffer, int number_of_samples) override;
+	int receiveSamples(int16_t * buffer, int numberOfSamples) override;
 	int stopStream() override;
 	int destroyStream() override;
 	int closeDevice() override;
@@ -16,5 +18,6 @@ public:
 private:
 	lms_device_t* device = NULL;
 	lms_stream_t streamId; 
-	lms_stream_meta_t my_stream_data;
-}
+	lms_stream_meta_t myStreamData;
+	int myChannel = 0;
+};
