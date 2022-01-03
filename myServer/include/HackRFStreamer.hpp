@@ -1,8 +1,11 @@
 #pragma once
-#include "lime/LimeSuite.h"
+#include <hackrf.h>
+#include <chrono>
 #include <RadioStreamer.hpp>
+#include <mutex>
+#include <condition_variable>
 
-class LimeStreamer : public RadioStreamer {
+class HackRFStreamer : public RadioStreamer {
 public:
 	int openDevice() override;
 	int setFrequency(uint64_t frequency) override;
@@ -15,9 +18,11 @@ public:
 	int destroyStream() override;
 	int closeDevice() override;
 
+	std::mutex buffer_mutex;
+	std::condition_variable buffer_cv;
+	unsigned char thread_buffer[262144*2];
+	unsigned int valid_length;
+
 private:
-	lms_device_t* device = NULL;
-	lms_stream_t streamId; 
-	lms_stream_meta_t myStreamData;
-	int myChannel = 0; 
+	hackrf_device* device = NULL;
 };

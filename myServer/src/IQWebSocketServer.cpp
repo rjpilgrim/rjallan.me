@@ -256,6 +256,7 @@ IQWebSocketServer::~IQWebSocketServer() {
 		serverThread.join();
     runImageThread = false;
     image_cv.notify_all();
+    socket_cv.notify_all();
     if (imageThread.joinable())
         imageThread.join();
 }

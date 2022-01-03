@@ -14,7 +14,8 @@ CommandLine::CommandLine(int argc,  char** argv) {
 		desc.add_options()
 		    ("help", "produce help message")
 		    ("radio", po::value<std::string>(), "set radio type: use \"lime\" or \"hackrf\"")
-		    ("audio", po::value<std::string>(), "set audio type: use \"wav\" or \"alsa\"");
+		    ("audio", po::value<std::string>(), "set audio type: use \"wav\" or \"alsa\"")
+            ("server", po::value<std::string>(), "set server on or off: use \"on\" or \"off\"");;
 		;
 		po::variables_map vm;
 		po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -35,11 +36,19 @@ CommandLine::CommandLine(int argc,  char** argv) {
         } 
 
         if (vm.count("audio")) {
-            if (vm["radio"].as<std::string>() == "wav") {
+            if (vm["audio"].as<std::string>() == "wav") {
             	audio = wav;
             }
-            if (vm["radio"].as<std::string>() == "alsa") {
+            if (vm["audio"].as<std::string>() == "alsa") {
             	audio = alsa;
+            }
+        } 
+        if (vm.count("server")) {
+            if (vm["server"].as<std::string>() == "on") {
+                server = on;
+            }
+            if (vm["server"].as<std::string>() == "off") {
+                server = off;
             }
         } 
 	}

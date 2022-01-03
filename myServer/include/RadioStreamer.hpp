@@ -21,4 +21,6 @@ public:
 
 	virtual int closeDevice() = 0;
 
+	virtual ~RadioStreamer() = default;
+
 };
