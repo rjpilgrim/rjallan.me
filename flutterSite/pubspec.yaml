@@ -18,20 +18,22 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=2.7.0 <3.0.0"
+  sdk: ">=2.12.0 <3.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   
-  web_socket_channel: ">=1.1.0 <2.0.0"
-  fft: ^0.2.0
-  my_complex: ">=0.1.0 <1.0.0"
-  loading: ^1.0.2
-  tuple: ^1.0.3
-  http: ^0.12.1
-  intl: ^0.16.1
-  url_launcher: ^5.5.0
+  web_socket_channel: ^2.1.0
+  loading:
+    git:
+      url: https://github.com/bradintheusa/loading
+      ref: master
+  tuple: ^2.0.0
+  http: ^0.13.4
+  intl: ^0.17.0
+  url_launcher: ^6.0.18
+  flutter_native_splash: ^2.0.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -44,6 +46,11 @@ dev_dependencies:
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
+flutter_native_splash:
+  color: '#FFFFFF'
+  image: 'assets/rjText.png'
+  web: true
+
 # The following section is specific to Flutter.
 flutter:
 
@@ -51,6 +58,19 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    - family: Pacifico
+      fonts:
+        - asset: assets/Pacifico.ttf
+    - family: Muli
+      fonts:
+        - asset: assets/Muli-Regular.ttf
+        - asset: assets/Muli-Italic.ttf
+          style: italic
+
+  assets:
+    - assets/me.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

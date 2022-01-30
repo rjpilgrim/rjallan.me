@@ -26,9 +26,10 @@ Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
   return jsonDecode(responseBody);
 }
 
+const Color uclaBlue = Color.fromRGBO(40, 115, 173, 1);
 
 Future<dart_ui.Image> fetchImage(String url) async {
-  var response = await http.get(url);
+  var response = await http.get(Uri.parse(url));
   var codec = await dart_ui.instantiateImageCodec( response.bodyBytes); //Uint8List
   var frame = await codec.getNextFrame();
   return frame.image;
@@ -45,13 +46,36 @@ class MyApp extends StatelessWidget {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(primaryColor: uclaBlue,
+        textTheme: TextTheme(
+          bodyText1: TextStyle(),
+          bodyText2: TextStyle(),
+        ).apply(
+          bodyColor: uclaBlue,
+          fontFamily: "Muli",
+          displayColor: Colors.blue,
+        ),
+      ),
       home: MyHomePage(title: 'RJ Allan'),
+    );
+  }
+
+}
+class WebEmojiLoaderHack extends StatelessWidget {
+  const WebEmojiLoaderHack({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Offstage(
+      // Insert invisible emoji in order to load the emoji font in CanvasKit
+      // on startup.
+      child: Text('✨'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({Key? key, required this.title}) : super(key: key);
 
   final String title;
 
@@ -72,11 +96,11 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _duplicate = false;
   bool _served = false;
 
-  ScrollController _aboutController;
-  ScrollController _whatController;
+  late ScrollController _aboutController;
+  late ScrollController _whatController;
 
-  static var url = window.location.hostname;
-  var channel = HtmlWebSocketChannel.connect("ws://"+url+"/socket");
+  static var url = window.location.hostname ?? "localhost";
+  HtmlWebSocketChannel? channel;
 
   StreamController<Tuple2<String, DateTime>> imageController = StreamController<Tuple2<String, DateTime>>.broadcast(); 
 
@@ -84,7 +108,7 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       if (!_playing) {
         _playing = true;
-        js.context.callMethod('playAudio', ["http://"+url+"/play/hls/index.m3u8"]);
+        js.context.callMethod('playAudio', [_connected ? "http://"+(url)+"/play/hls/index.m3u8" : "https://stream-relay-geo.ntslive.net/stream2", _connected]);
       }
       else {
         _playing = false;
@@ -157,9 +181,12 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     _aboutController = ScrollController();
     _whatController = ScrollController();
-    channel.stream.listen((data) {
-      Future<Map<String, dynamic>> messageFuture = compute(jsonDecodeIsolate, data);
-      messageFuture.then(( Map<String, dynamic> message) {
+    /*try {
+      channel = HtmlWebSocketChannel.connect("ws://" + (url) + "/socket");
+      channel?.stream.listen((data) {
+        Future<Map<String, dynamic>> messageFuture = compute(
+            jsonDecodeIsolate, data);
+        messageFuture.then((Map<String, dynamic> message) {
           //print("FUTURE RETURN");
           if (message.containsKey("Served")) {
             setState(() {
@@ -198,53 +225,61 @@ class _MyHomePageState extends State<MyHomePage> {
               print('error caught: $e');
             }
             });*/
-            imageController.add(Tuple2<String,DateTime>(imageName, imageTime));
+            imageController.add(Tuple2<String, DateTime>(imageName, imageTime));
           }
-      }
-      );
-    });
+        }
+        );
+      });
+    }
+    catch (_) {
+
+    }*/
     super.initState();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(AssetImage('assets/me.jpg'), context);
+  }
+  double roundUpToNumber(double number, double roundTo) {
+    if (number < roundTo) {
+      return roundTo;
+    }
+    return number;
+  }
+
+  //nts2 - https://stream-relay-geo.ntslive.net/stream2
   @override
   Widget build(BuildContext context) {
     var  _mediaQuery = MediaQuery.of(context);
     double _width = _mediaQuery.size.width;  //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.height :  _mediaQuery.size.width;
     double _height = _mediaQuery.size.height; //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.width :  _mediaQuery.size.height;
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Container (
-        decoration: const BoxDecoration(
-          border: Border(
-            top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-            left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-            right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-            bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-          ),
-        ),
-        width: _width,
-        height: _height,
-        child: Center(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView (
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
+            //WebEmojiLoaderHack(),
             SizedBox(height: 10),
             SizedBox(  
               height:(_width < 450) ? 60 :70,
               child: Row(  
                 children: [  
-                  Text("RJ Allan", style: TextStyle(fontSize: (_width < 450) ? 31 :41, color: Colors.white)),
+                  Text("RJ  Allan", style: TextStyle(fontFamily: "Pacifico",fontSize: (_width < 450) ? 31 :41)),
                   SizedBox(width: 10),
                   Ink(
                     decoration: const ShapeDecoration(
-                      color: Colors.white,
+                      color: uclaBlue,
                       shape: CircleBorder(),
                     ),
                     height: (_width < 450) ? 40 :50,
                     child: IconButton(
                       icon: _playing ? Icon(Icons.pause) : Icon(Icons.play_arrow),
-                      color: Colors.black,
-                      tooltip: _playing ? 'Stop digitally demodulated audio' : 'Play digitally demodulated audio',
+                      color: Colors.white,
+                      tooltip: _playing ? (_connected ? 'Stop digitally demodulated audio' : 'Stop NTS Radio')
+                          : (_connected ? 'Play digitally demodulated audio': 'Play NTS Radio'),
                       onPressed: _playAudio
                     ),
                   ),
@@ -254,10 +289,8 @@ class _MyHomePageState extends State<MyHomePage> {
               )
             ),
             SizedBox(height: 10),
-            
             Container( 
               height:50,
-              
               child: Row(children: [
                 MouseRegion( 
                 onEnter: _setHomeHoverOn,
@@ -269,15 +302,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   width: (_width < 450) ? _width/3.5 :150,  
                   alignment: Alignment.center,
                   decoration: BoxDecoration( 
-                    color: _pageSelect == 0 ? Colors.white60: _homeHover ? Colors.white24 : Colors.black, 
+                    color: _pageSelect == 0 ? uclaBlue : _homeHover ? Colors.white : Colors.white,
                     border: Border( 
-                      top: BorderSide(color: Colors.white, width: 5.0),
-                      bottom: BorderSide(color: Colors.white, width: 5.0),
-                      left: BorderSide(color: Colors.white, width: 5.0),
-                      right: BorderSide(color: Colors.white, width: 2.5)
+                      top: BorderSide(color: uclaBlue, width: 5.0),
+                      bottom: BorderSide(color: uclaBlue, width: 0),
+                      left: BorderSide(color: uclaBlue, width: 5.0),
+                      right: BorderSide(color: uclaBlue, width: 2.5)
                     )
                   ),
-                  child: Text("Home", style: TextStyle(fontSize: (_width < 450) ? 14 :21, color: _pageSelect == 0 ? Colors.black87 : _homeHover ? Colors.white: Colors.white))
+                  child: Text("Home", style: TextStyle(fontSize: (_width < 450) ? 14 :21,
+                      color: _pageSelect == 0 ? Colors.white : uclaBlue))
                 ),
                 ),
                 ),
@@ -291,15 +325,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   width: (_width < 450) ? _width/3.5 :150,  
                   alignment: Alignment.center, 
                   decoration: BoxDecoration(  
-                    color: _pageSelect == 1 ? Colors.white60 : _aboutHover ? Colors.white24 : Colors.black,
+                    color: _pageSelect == 1 ? uclaBlue : _homeHover ? Colors.white : Colors.white,
                     border: Border(
-                      top: BorderSide(color: Colors.white, width: 5.0),
-                      bottom: BorderSide(color: Colors.white, width: 5.0),
-                      right: BorderSide(color: Colors.white, width: 2.5),
-                      left: BorderSide(color: Colors.white, width: 2.5)
+                      top: BorderSide(color: uclaBlue, width: 5.0),
+                      bottom: BorderSide(color: uclaBlue, width: 0),
+                      right: BorderSide(color: uclaBlue, width: 2.5),
+                      left: BorderSide(color: uclaBlue, width: 2.5)
                     )
                   ),
-                  child: Text("About me", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: _pageSelect == 1 ? Colors.black87 : _aboutHover ? Colors.white: Colors.white))
+                  child: Text("About me", style: TextStyle(fontSize: (_width < 450) ? 14 :21,
+                      color: _pageSelect == 1 ? Colors.white : uclaBlue))
                 ),
                 )
                 ),
@@ -313,229 +348,154 @@ class _MyHomePageState extends State<MyHomePage> {
                   width: (_width < 450) ? _width/3.5 :150,   
                   alignment: Alignment.center,   
                   decoration: BoxDecoration(  
-                    color: _pageSelect == 2 ? Colors.white60 : _whatHover ? Colors.white24 : Colors.black,
+                    color: _pageSelect == 2 ? uclaBlue : _homeHover ? Colors.white : Colors.white,
                     border: Border( 
-                      top: BorderSide(color: Colors.white, width: 5.0),
-                      bottom: BorderSide(color: Colors.white, width: 5.0),
-                      right: BorderSide(color: Colors.white, width: 5.0),
-                      left: BorderSide(color: Colors.white, width: 2.5)
+                      top: BorderSide(color: uclaBlue, width: 5.0),
+                      bottom: BorderSide(color: uclaBlue, width: 0),
+                      right: BorderSide(color: uclaBlue, width: 5.0),
+                      left: BorderSide(color: uclaBlue, width: 2.5)
                     )
                   ),
-                  child: Text("What is this?", style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: _pageSelect == 02 ? Colors.black87 : _whatHover ? Colors.white: Colors.white))
+                  child: Text("What is this?", style: TextStyle(fontSize: (_width < 450) ? 14 :21,
+                      color: _pageSelect == 2 ? Colors.white : uclaBlue))
                 ),
                 ) 
                 ),
               ],mainAxisAlignment: MainAxisAlignment.center)
             ),
-            /*Divider(  
-              color: Colors.white,
-              endIndent: 60,
-              indent: 60,
-              height: 50,
-              thickness: 3,
-            ),*/
+            Divider(
+              color: uclaBlue,
+              endIndent: _width <= 530 ? roundUpToNumber((_width - 450)/2, 0) :40,
+              indent: _width <= 530 ? roundUpToNumber((_width - 450)/2, 0)  :40,
+              height: 5,
+              thickness: 5,
+            ),
             SizedBox(height: 10),
-            (_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? Center(child: Text("Please flip your phone around to view content.", style: TextStyle(fontSize:27, color: Colors.white)))
-            : _pageSelect == 0 ? RealTimeSpectrogram(height: _height, width: _width, connected: _connected, queued: _queued, queuePosition: _queuePosition, duplicate: _duplicate, served: _served, imageStream: imageController.stream)
-            : _pageSelect == 1 ? Expanded(child: Padding( 
-                padding: EdgeInsets.fromLTRB(22, 20, 22, 50), 
-                child: Container(padding: EdgeInsets.fromLTRB(20, 10, 5, 10), decoration: BoxDecoration(color: Colors.white60, border: Border(
-                    top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                    left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                    right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                    bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                  ),) 
-                
-                , constraints: BoxConstraints( maxWidth: 1200)
-                , child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints viewportConstraints) {
-                      return Scrollbar(isAlwaysShown: true, controller: _aboutController, child: SingleChildScrollView( controller: _aboutController,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: viewportConstraints.maxHeight,
-                          ),
-                          child: IntrinsicHeight( child: Padding( padding: EdgeInsets.fromLTRB(0, 0, 10, 0), 
-                
-                            child: Column (crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start,
-                              children:  [
-                                Text( 
-                                  "I am a software engineer who loves to work on novel and challenging projects that bridge the gap between high and low level technologies. " +
-                                  "I have recent experience with applications in IOT, wireless communications, graphics" +
-                                  ", music production, speech analysis, and natural language processing."
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                                SizedBox(height: 10),
-                                MouseRegion( 
-                                cursor: SystemMouseCursors.click,
-                                child: RichText(
-                                  text: TextSpan(
-                                    style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87),
-                                    children: <TextSpan>[
-                                      TextSpan(text: 'My resume is ',
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("http://"+url+"/rjallan.pdf");
-                                            }),
-                                      
-                                      TextSpan(
-                                          text: 'here',
-                                          style: TextStyle(color: Colors.deepPurple),
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("http://"+url+"/rjallan.pdf");
-                                            }),
-                                      TextSpan(
-                                          text: '.',
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("http://"+url+"/rjallan.pdf");
-                                            }),
-                                    ],
-                                  ),
-                                ),
-                                ),
-                                SizedBox(height: 10),
-                                Text( 
-                                  "I received my BS in Computer Science from UNC Chapel Hill, and my MS in Computer Science from UCLA. I focused my studies at UCLA in wireless communications "+ 
-                                  "envisioning new protocols designed to bring together physical communities."
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                                SizedBox(height: 10),
-                                Text( 
-                                  "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at MTS Sensors. In addition to increasing my understanding of " +
-                                  "electronics with the talented electical engineers here. I have gained valuable experience in IOT software development including UI development and embedded firmware development."
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                                SizedBox(height: 10),
-                                Text( 
-                                  "Outside of work, I enjoy playing guitar, singing, and surfing. I enjoy following baseball and college basketball, following the Dodgers and UCLA Bruins primarily."
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                              ]
-                
-                            )
-                          )
-                          )
-                        )
-                      ));
-                    }
-                  )
-                )
+            /*(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? Center(child: Text("Please flip your phone around to view content.", style: TextStyle(fontSize:27, color: Colors.white)))
+            :*/ _pageSelect == 0 ?
+            //Column( children: [Text("Under Construction :)"), Spacer(), Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:uclaBlue)), Spacer()])
+            RealTimeSpectrogram(height: _height, width: _width, connected: _connected, queued: _queued, queuePosition: _queuePosition, duplicate: _duplicate, served: _served, imageStream: imageController.stream)
+            : _pageSelect == 1 ?
+            Padding(
+              padding: EdgeInsets.fromLTRB(50, 0, 50, 0),
+              child: Column (crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start,
+                children:  [
+                  /*MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: */RichText(
+                    text: TextSpan(
+                      style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87, fontFamily: "Muli"),
+                      children: <TextSpan>[
+                        TextSpan(text:
+                            "I am a software engineer who loves to work on novel and challenging projects that bridge the gap between high and low level technologies. " +
+                            "I have recent experience with applications in IOT, wireless communications, graphics" +
+                            ", music production, speech analysis, and natural language processing. "
+                        ),
+                        TextSpan(text: 'My resume is ',
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () {
+                                launch("http://"+url+"/rjallan.pdf");
+                              }),
+
+                        TextSpan(
+                            text: 'here',
+                            style: TextStyle(color: Colors.deepPurple),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () {
+                                launch("http://"+url+"/rjallan.pdf");
+                              }),
+                        TextSpan(
+                            text: '.',
+                        ),
+                      ],
+                    ),
+                  //),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "I received my BS in Computer Science from UNC Chapel Hill, and my MS in Computer Science from UCLA. I focused my studies at UCLA in wireless communications "+
+                    "and novel applications for radio protocols to increase connectivity among physical communities."
+                    ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at Temposonics (formerly MTS Sensors). In addition to increasing my understanding of " +
+                    "hardware with the talented electical engineers here, I have gained valuable experience in IOT software development including user interface and embedded firmware development."
+                    ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Outside of work, I enjoy playing guitar, singing, and surfing."
+                    ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                  ),
+                  SizedBox(height: 20),
+                  Center(
+                    child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8.0),
+                        child: Image(image: AssetImage('assets/me.jpg'), width: roundUpToNumber(_width* 0.3, 400) )
+                    )
+                  ),
+                  SizedBox(height: 20),
+                ]
               )
             )
-            : Expanded(child: Padding( 
-                padding: EdgeInsets.fromLTRB(22, 20, 22, 50), 
-                child: Container(padding: EdgeInsets.fromLTRB(20, 10, 5, 10), decoration: BoxDecoration(color: Colors.white60, border: Border(
-                    top: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                    left: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                    right: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                    bottom: BorderSide(width: 4.0, color: Color(0xFFFFFFFFFF)),
-                  ),) 
-                
-                , constraints: BoxConstraints( maxWidth: 1200)
-                , child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints viewportConstraints) {
-                      return Scrollbar(isAlwaysShown: true, controller: _aboutController, child: SingleChildScrollView( controller: _aboutController,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: viewportConstraints.maxHeight,
-                          ),
-                          child: IntrinsicHeight( child:  Padding( padding: EdgeInsets.fromLTRB(0, 0, 10, 0), 
-                            child: Column (crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start,
-                              children:  [
-                                Text( 
-                                  "The home page is a spectrogram view of my favorite local FM radio station. This view is created by tuning to the station with a LimeSDR and applying some digital signal processing. " +
-                                  "Press the play button above to listen to the radio station as it is demodulated on the server."
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                                SizedBox(height: 10),
-                                MouseRegion( 
-                                cursor: SystemMouseCursors.click,
-                                child: RichText(
-                                  text: TextSpan(
-                                    style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87),
-                                    children: <TextSpan>[
-                                      TextSpan(text: 'I encourage you to visit the WCPE website over at ',
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("https://theclassicalstation.org/");
-                                            }),
-                                      
-                                      TextSpan(
-                                          text: 'theclassicalstation.org',
-                                          style: TextStyle(color: Colors.deepPurple),
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("https://theclassicalstation.org/");
-                                            }),
-                                      TextSpan(
-                                          text: ' to listen to the pure audio.',
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("https://theclassicalstation.org/");
-                                            }),
-                                    ],
-                                  ),
-                                ),
-                                ),
-                                SizedBox(height: 10),
-                                MouseRegion( 
-                                cursor: SystemMouseCursors.click,
-                                child: RichText(
-                                  text: TextSpan(
-                                    style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87),
-                                    children: <TextSpan>[
-                                      TextSpan(text: 'The code for this site, meanwhile, is hosted ',
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("https://github.com/rjpilgrim/rjallan.me");
-                                            }),
-                                      
-                                      TextSpan(
-                                          text: 'here',
-                                          style: TextStyle(color: Colors.deepPurple),
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("https://github.com/rjpilgrim/rjallan.me");
-                                            }),
-                                      TextSpan(
-                                          text: '.',
-                                          recognizer: TapGestureRecognizer()
-                                            ..onTap = () {
-                                              launch("https://github.com/rjpilgrim/rjallan.me");
-                                            }),
-                                    ],
-                                  ),
-                                ),
-                                ),
-                                SizedBox(height: 10),
-                                Text( 
-                                  "This site uses the flutter web engine for its display. On the back end, there is an nginx server running on a computer in my house. The displayed spectrogram screenshots and audio stream" +
-                                  "are generated by a process running on that computer, which has the SDR unit connected to it. The audio stream is generated by a digital low pass filter followed by a phase difference calculation" + 
-                                  "performed on the samples coming in from the SDR unit. The spectrogram is created by an FFT performed after the initial low pass filter, followed by a write to a PNG pixel row, building out" +
-                                  "a complete spectrogram snapshot as samples come in."
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                                SizedBox(height: 10),
-                                Text( 
-                                  "This site i"
-                                  ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
-                                ),
-                              ]
-                
-                            )
-                          )
-                          )
-                        )
-                      ));
-                    }
-                  )
+            : Padding(
+                padding: EdgeInsets.fromLTRB(50, 0, 50, 0),
+                child: Column (crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.start,
+                  children:  [
+                    Text(
+                      "I am currently rebuilding the site, hence the loading screen on the home page. "
+                      ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "From August 2020 to May 2021, this site was served directly from a laptop in my house, showing a real time spectrogram feed of a local FM radio station. " +
+                      "The displayed spectrogram screenshots and audio stream were generated by a process running on that computer, which had an SDR unit connected to it. " +
+                      "The audio stream was generated by a digital low pass filter followed by a phase difference calculation performed on the samples coming in from the SDR unit. " +
+                      "The spectrogram was created by an FFT performed after the initial low pass filter, followed by a write to a PNG pixel row, building out a complete spectrogram snapshot as samples came in. "
+                      ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      "In 2022, I am instead transitioning this site to a new architecture wherein the web requests will be served from a remote server and said server will be the only thing communicating with my local device. " +
+                      "Furthermore, in cases where my local device cannot be reached, the server will default to showing the spectrum of the NTS Live 2 Radio Stream."
+                        ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                    ),
+                    SizedBox(height: 10),
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87, fontFamily: "Muli"),
+                          children: <TextSpan>[
+                            TextSpan(text: 'You can follow along with the code for this site over ',
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://github.com/rjpilgrim/rjallan.me");
+                                  }),
+
+                            TextSpan(
+                                text: 'here',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://github.com/rjpilgrim/rjallan.me");
+                                  }),
+                            TextSpan(
+                                text: '.',
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://github.com/rjpilgrim/rjallan.me");
+                                  }),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ]
                 )
-              )
             )
           ],
         ),
-      ),
       ),
       /*floatingActionButton: FloatingActionButton(
         onPressed: _playAudio,
@@ -551,7 +511,8 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class RealTimeSpectrogram extends StatelessWidget {
-  RealTimeSpectrogram({Key key, this.width, this.height, this.connected, this.queued, this.queuePosition, this.duplicate, this.served, this.imageStream}) : super(key: key);
+  RealTimeSpectrogram({Key? key, required this.width, required this.height, required this.connected, required this.queued, required this.queuePosition,
+    required this.duplicate, required this.served, required this.imageStream}) : super(key: key);
   final double width;
   final double height;
   final bool connected;
@@ -568,9 +529,7 @@ class RealTimeSpectrogram extends StatelessWidget {
     return SizedBox(  
           width: _width-18,
           height: _height*0.75,
-          child: !connected ? Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
-                : duplicate ? Center(child: Text("Your device is already connected to this site somewhere. Sorry, I do not have the bandwidth to host you twice.", style: TextStyle(fontSize:27, color: Colors.white)))
-                : queued ? Center(child: Text("You are in the queue to view the spectrogram. Your position in the queue is: $queuePosition.", style: TextStyle(fontSize:27, color: Colors.white)))
+          child: !connected ? Column( children: [Text("Under Construction :)"), Spacer(), Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:uclaBlue)), Spacer()])
                 : served ? 
                   SpectrogramWindow(imageStream: imageStream, width: _width, height: _height)
                 : Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:Colors.white))
@@ -581,7 +540,7 @@ class RealTimeSpectrogram extends StatelessWidget {
 }
 
 class SpectrogramWindow extends StatefulWidget {
-  SpectrogramWindow({Key key, /*this.gradientStream,*/ this.imageStream, this.width, this.height}) : super(key: key);
+  SpectrogramWindow({Key? key, /*this.gradientStream,*/ required this.imageStream, required this.width, required this.height}) : super(key: key);
   //final Stream<LinearGradient> gradientStream;
   final Stream<Tuple2<String, DateTime>> imageStream;
   final double width;
@@ -593,14 +552,13 @@ class SpectrogramWindow extends StatefulWidget {
 
 class _SpectrogramWindowState extends State<SpectrogramWindow> {
 
-  dart_ui.Image myImage;
+  dart_ui.Image? myImage;
   
-  bool _ready = false;
   bool _fetchingImage = false;
-  DateTime myTime;
-  DateTime laterTime;
+  DateTime? myTime;
+  DateTime? laterTime;
 
-  static var url = window.location.hostname;
+  static var url = window.location.hostname ?? "localhost";
 
   static NumberFormat numberFormat = new NumberFormat("00");
 
@@ -656,13 +614,16 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
           myImage = image;
           myTime = data.item2;
           laterTime = data.item2.add(Duration(seconds:10));
-          _ready = true;
         });
       });
       }
     }
     );
     super.initState();
+  }
+
+  String getFormatTime(DateTime time) {
+    return "${numberFormat.format(myTime!.hour)}:${numberFormat.format(myTime!.minute)}:${numberFormat.format(myTime!.second)}";
   }
 
   @override
@@ -701,13 +662,13 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
                 )
               )
             )*/
-            _ready ? Stack(children: [Container(constraints: BoxConstraints.expand(),child:FittedBox(  
+          (myImage != null && myTime != null && laterTime != null) ? Stack(children: [Container(constraints: BoxConstraints.expand(),child:FittedBox(
               fit: BoxFit.fill,
               child: SizedBox(  
-                width: myImage.width.toDouble(),
-                height: myImage.height.toDouble(),
+                width: myImage!.width.toDouble(),
+                height: myImage!.height.toDouble(),
                 child: CustomPaint(  
-                  painter: ImagePainter(myImage),
+                  painter: ImagePainter(myImage!),
                   child: Center(child: Text(""))/* Container( 
                     child: CustomPaint( 
                       painter: TimePainter((_width < 450) ? true:false),
@@ -719,7 +680,7 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
             ),
             Container(constraints: BoxConstraints.expand(),child:
               CustomPaint( 
-                  painter: TimePainter((_width < 450) ? true:false, "${numberFormat.format(myTime.hour)}:${numberFormat.format(myTime.minute)}:${numberFormat.format(myTime.second)} EST", "${numberFormat.format(laterTime.hour)}:${numberFormat.format(laterTime.minute)}:${numberFormat.format(laterTime.second)} EST"),
+                  painter: TimePainter((_width < 450) ? true:false, "${getFormatTime(myTime!)} EST", "${getFormatTime(laterTime!)} EST"),
                   child: Center(child: Text(""))
                     
                 )
