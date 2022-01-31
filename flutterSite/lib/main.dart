@@ -255,6 +255,8 @@ class _MyHomePageState extends State<MyHomePage> {
     var  _mediaQuery = MediaQuery.of(context);
     double _width = _mediaQuery.size.width;  //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.height :  _mediaQuery.size.width;
     double _height = _mediaQuery.size.height; //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.width :  _mediaQuery.size.height;
+    double _myFontSize = (_width < 450 || _height < 450) ? 14 :21;
+    double _titleFont = (_width < 450 || _height < 450) ? 31 :41;
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView (
@@ -267,7 +269,7 @@ class _MyHomePageState extends State<MyHomePage> {
               height:(_width < 450) ? 60 :70,
               child: Row(  
                 children: [  
-                  Text("RJ  Allan", style: TextStyle(fontFamily: "Pacifico",fontSize: (_width < 450) ? 31 :41)),
+                  Text("RJ  Allan", style: TextStyle(fontFamily: "Pacifico",fontSize: _titleFont)),
                   SizedBox(width: 10),
                   Ink(
                     decoration: const ShapeDecoration(
@@ -299,7 +301,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: GestureDetector(
                 onTap: _selectHomePage,
                 child: Container(
-                  width: (_width < 450) ? _width/3.5 :150,  
+                  width: (_width < 450) ? _width/3.5 :150,
                   alignment: Alignment.center,
                   decoration: BoxDecoration( 
                     color: _pageSelect == 0 ? uclaBlue : _homeHover ? Colors.white : Colors.white,
@@ -310,7 +312,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       right: BorderSide(color: uclaBlue, width: 2.5)
                     )
                   ),
-                  child: Text("Home", style: TextStyle(fontSize: (_width < 450) ? 14 :21,
+                  child: Text("Home", style: TextStyle(fontSize: _myFontSize,
                       color: _pageSelect == 0 ? Colors.white : uclaBlue))
                 ),
                 ),
@@ -322,7 +324,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: GestureDetector(
                 onTap: _selectAboutPage,
                 child: Container(
-                  width: (_width < 450) ? _width/3.5 :150,  
+                  width: (_width < 450 ) ? _width/3.5 :150,
                   alignment: Alignment.center, 
                   decoration: BoxDecoration(  
                     color: _pageSelect == 1 ? uclaBlue : _homeHover ? Colors.white : Colors.white,
@@ -333,7 +335,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       left: BorderSide(color: uclaBlue, width: 2.5)
                     )
                   ),
-                  child: Text("About me", style: TextStyle(fontSize: (_width < 450) ? 14 :21,
+                  child: Text("About me", style: TextStyle(fontSize: _myFontSize,
                       color: _pageSelect == 1 ? Colors.white : uclaBlue))
                 ),
                 )
@@ -356,7 +358,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       left: BorderSide(color: uclaBlue, width: 2.5)
                     )
                   ),
-                  child: Text("What is this?", style: TextStyle(fontSize: (_width < 450) ? 14 :21,
+                  child: Text("What is this?", style: TextStyle(fontSize: _myFontSize,
                       color: _pageSelect == 2 ? Colors.white : uclaBlue))
                 ),
                 ) 
@@ -384,7 +386,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   cursor: SystemMouseCursors.click,
                   child: */RichText(
                     text: TextSpan(
-                      style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87, fontFamily: "Muli"),
+                      style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
                       children: <TextSpan>[
                         TextSpan(text:
                             "I am a software engineer who loves to work on novel and challenging projects that bridge the gap between high and low level technologies. " +
@@ -394,7 +396,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         TextSpan(text: 'My resume is ',
                             recognizer: TapGestureRecognizer()
                               ..onTap = () {
-                                launch("http://"+url+"/rjallan.pdf");
+                                launch("https://"+url+"/rjallan.pdf");
                               }),
 
                         TextSpan(
@@ -402,7 +404,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             style: TextStyle(color: Colors.deepPurple),
                             recognizer: TapGestureRecognizer()
                               ..onTap = () {
-                                launch("http://"+url+"/rjallan.pdf");
+                                launch("https://"+url+"/rjallan.pdf");
                               }),
                         TextSpan(
                             text: '.',
@@ -415,18 +417,18 @@ class _MyHomePageState extends State<MyHomePage> {
                   Text(
                     "I received my BS in Computer Science from UNC Chapel Hill, and my MS in Computer Science from UCLA. I focused my studies at UCLA in wireless communications "+
                     "and novel applications for radio protocols to increase connectivity among physical communities."
-                    ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                    ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                   ),
                   SizedBox(height: 10),
                   Text(
                     "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at Temposonics (formerly MTS Sensors). In addition to increasing my understanding of " +
                     "hardware with the talented electical engineers here, I have gained valuable experience in IOT software development including user interface and embedded firmware development."
-                    ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                    ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                   ),
                   SizedBox(height: 10),
                   Text(
                     "Outside of work, I enjoy playing guitar, singing, and surfing."
-                    ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                    ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                   ),
                   SizedBox(height: 20),
                   Center(
@@ -445,7 +447,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   children:  [
                     Text(
                       "I am currently rebuilding the site, hence the loading screen on the home page. "
-                      ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                      ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                     ),
                     SizedBox(height: 10),
                     Text(
@@ -453,20 +455,20 @@ class _MyHomePageState extends State<MyHomePage> {
                       "The displayed spectrogram screenshots and audio stream were generated by a process running on that computer, which had an SDR unit connected to it. " +
                       "The audio stream was generated by a digital low pass filter followed by a phase difference calculation performed on the samples coming in from the SDR unit. " +
                       "The spectrogram was created by an FFT performed after the initial low pass filter, followed by a write to a PNG pixel row, building out a complete spectrogram snapshot as samples came in. "
-                      ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                      ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                     ),
                     SizedBox(height: 10),
                     Text(
                       "In 2022, I am instead transitioning this site to a new architecture wherein the web requests will be served from a remote server and said server will be the only thing communicating with my local device. " +
                       "Furthermore, in cases where my local device cannot be reached, the server will default to showing the spectrum of the NTS Live 2 Radio Stream."
-                        ,style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87)
+                        ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                     ),
                     SizedBox(height: 10),
                     MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: RichText(
                         text: TextSpan(
-                          style: TextStyle(fontSize: (_width < 450) ? 14 :21,  color: Colors.black87, fontFamily: "Muli"),
+                          style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
                           children: <TextSpan>[
                             TextSpan(text: 'You can follow along with the code for this site over ',
                                 recognizer: TapGestureRecognizer()
@@ -491,6 +493,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ),
                     ),
+                    SizedBox(height: 20),
                   ]
                 )
             )
