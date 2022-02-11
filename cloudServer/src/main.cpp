@@ -143,18 +143,18 @@ int main(int argc, char** argv)
 			std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
 			struct tm timeInfo;
 			struct tm local_tm = *localtime_r(&nowTime, &timeInfo);
-			printf("GOIN IN: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
-			if ((local_tm.tm_sec - i) >= (40) || (i >= 5 && (local_tm.tm_sec - i) < 0)) {
+			//printf("GOIN IN: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
+			if ((local_tm.tm_sec) >= (40)) {
 				local_tm.tm_min = (local_tm.tm_min + 1) % 60;
 				local_tm.tm_sec = i*2;
 			}
-			else if ((local_tm.tm_sec - i) >= (20)) {
+			else if ((local_tm.tm_sec) >= (20)) {
 				local_tm.tm_sec = 40 + i*2;
 			}
 			else {
 				local_tm.tm_sec = 20 + i*2;
 			}
-			printf("DELAYING UNTIL: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
+			//printf("DELAYING UNTIL: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
 			std::time_t scheduleTime = mktime(&local_tm);
 			auto schedule = std::chrono::system_clock::from_time_t(scheduleTime);
 			std::this_thread::sleep_until(schedule);
@@ -181,18 +181,23 @@ int main(int argc, char** argv)
 			}
 			else {
 				if (waitpid(pid, &status, 0) > 0) {
-					printf("FINISHED CURL for: %d\n", i);
-					/*if (!WIFEXITED(status)) {
-						printf("BAD EXIT!\n");
-						continue;
-					}*/
+					//printf("FINISHED CURL for: %d\n", i);
+					if (WIFEXITED(status)) {
+						int es = WEXITSTATUS(status);
+						if (es != 28) {
+							continue;
+						}						
+					}
 					
 					std::string filePath = std::to_string(i) + ".wav";
-					std::this_thread::sleep_for(100ms);
+					std::this_thread::sleep_for(1ms);
 					std::string mpgCommand = "mpg123 -w " + filePath + " " + std::to_string(i) + ".mp3" + " > /dev/null";
 					system(mpgCommand.c_str());
 					FILE * myFile;
 					myFile = fopen(filePath.c_str(), "rb");
+					if (myFile == NULL) {
+						continue;
+					}
 					fseek(myFile, 44, SEEK_SET);
 					int firstNonzeroSample = 44;
 					bool firstNonzeroFound = false;
@@ -228,7 +233,7 @@ int main(int argc, char** argv)
 
 					int scanLineCounter = 0;
 					while ((currentByte < tenSecondsOfBytes) && (fread(fileBuffer, 2, 4096, myFile) == 4096)) {
-						printf("4\n");
+						//printf("4\n");
 						double minMono = 1000000000000;
 						double maxMono = -1000000000000;
 						for (int j = 0; j < 2048; j++) {
@@ -254,8 +259,8 @@ int main(int argc, char** argv)
 							//monoBuffer[j] /= 32768;
 							//printf("Here is monoBuffer at %d: %f\n", j, monoBuffer[j]);
 						}
-						printf("Here is minMono: %f\n", minMono);
-						printf("here is maxMono: %f\n", maxMono);
+						//printf("Here is minMono: %f\n", minMono);
+						//printf("here is maxMono: %f\n", maxMono);
 						for (int j = 0; j<2048; j++) {
 		            		fft_in[i][j] = monoBuffer[j] * hann2048[j];
 		            		//fft_in[i][j] = monoBuffer[j];
@@ -327,9 +332,16 @@ int main(int argc, char** argv)
 						fseek(myFile, -4096, SEEK_CUR);
 						currentByte += 4096;
 					}
-					jpeg_finish_compress(& jpeg_structs[i]);
-					fclose(imageFile);
-					jpeg_destroy_compress(&jpeg_structs[i]);
+					if (scanLineCounter == 431) {
+						jpeg_finish_compress(& jpeg_structs[i]);
+						fclose(imageFile);
+						jpeg_destroy_compress(&jpeg_structs[i]);
+					}
+					else {
+						fclose(imageFile);
+						jpeg_destroy_compress(&jpeg_structs[i]);
+						continue;
+					}
 
 					std::string mv_call = std::string("mv ") + std::to_string(i) + ".jpg" + std::string(" ") + std::to_string(i) + ".jpg.old";
 					std::string flip_call = std::string("jpegtran -flip vertical -outfile ") + std::to_string(i) + ".jpg" + std::string(" ") + std::to_string(i) + ".jpg.old";
@@ -363,6 +375,15 @@ int main(int argc, char** argv)
 	//convet to mp3
 	system("mpg123 -w output.wav speedlimit.mp3");
 */
+
+	std::promise<unsigned short> server_port;
+
+	server.start([&server_port](unsigned short port) {
+                server_port.set_value(port);
+            }
+    );
+
+    std::cout << "Server listening on port" << server_port.get_future().get() << std::endl << std::endl;
 
 	while (true) {
 		std::this_thread::sleep_for(1000000s);
