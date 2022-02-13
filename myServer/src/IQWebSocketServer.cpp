@@ -302,7 +302,7 @@ void IQWebSocketServer::openFile() {
 
 void IQWebSocketServer::openFile() {
     int i = 0;
-    for (i; i < 4; i++) {
+    for (i = 0; i < 4; i++) {
         if (file_pointers[i] == nullptr) {
             int index = i == 0 ? 3 : i - 1;
             if (first_file && file_rows[index] < 538 ) {
@@ -382,7 +382,7 @@ void IQWebSocketServer::closeFile() {
 
 void IQWebSocketServer::closeFile() {
     int i = 0;
-    for (i; i < 4; i++) {
+    for (i=0; i < 4; i++) {
         if (file_pointers[i] != nullptr ) {
             if (file_rows[i] >= 2153) 
                 break;

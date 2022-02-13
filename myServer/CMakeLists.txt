@@ -29,9 +29,9 @@ message( STATUS "CMAKE MODULE PATH: ${CMAKE_MODULE_PATH}" )
 message( STATUS "CMAKE MODULE PATH: ${LIBUSB_INCLUDE_DIR}" )
 
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../Simple-WebSocket-Server)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../Simple-WebSocket-Server ${CMAKE_CURRENT_BINARY_DIR}/Simple-WebSocket-Server)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fftw-3.3.9 ${CMAKE_CURRENT_BINARY_DIR}/fftw-3.3.9)
 add_subdirectory(LimeSuite)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fftw-3.3.9)
 add_subdirectory(hackrf/host/libhackrf/)
 
 add_executable(main src/main.cpp src/IQWebSocketServer.cpp src/WAVWriter.cpp ${ALSASTREAMER_SRC} src/CommandLine.cpp src/LimeStreamer.cpp src/HackRFStreamer.cpp)
