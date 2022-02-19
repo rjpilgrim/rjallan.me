@@ -178,6 +178,66 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
   }
 
+  void mySocketListenFunction(dynamic data) {
+      Future<Map<String, dynamic>> messageFuture = compute(
+          jsonDecodeIsolate, data);
+      messageFuture.then((Map<String, dynamic> message) {
+        //print("FUTURE RETURN");
+        if (message.containsKey("Served")) {
+          setState(() {
+            _connected = true;
+            _queued = false;
+            _duplicate = false;
+            _served = message["Served"];
+          });
+        }
+        if (message.containsKey("Queue Position")) {
+          setState(() {
+            _connected = true;
+            _queued = true;
+            _queuePosition = message["Queue Position"];
+          });
+        }
+        if (message.containsKey("Duplicate")) {
+          setState(() {
+            _connected = true;
+            _duplicate = message["Duplicate"];
+          });
+        }
+        if (message.containsKey("Image Name")) {
+          String imageName = message["Image Name"];
+          DateTime imageTime = DateTime.parse(message["Image Time"]);
+          /*Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
+            gradientFuture.then((gradient) {
+            /*var gradient = LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
+            );*/
+            try {
+              gradientController.add(gradient);
+            } on Exception catch(e) {
+              print('error caught: $e');
+            }
+            });*/
+          imageController.add(Tuple2<String, DateTime>(imageName, imageTime));
+        }
+      }
+      );
+  }
+
+  void webSocketKeepAlive() {
+    if (channel == null || channel?.closeCode != null) {
+      channel = HtmlWebSocketChannel.connect(url == "localhost" ? "ws://" + (url) + ":8080/socket"
+          : window.location.port == "80" ? "ws://" + (url) + "/socket"
+          : "wss://" + (url) + "/socket");
+      channel?.stream.listen(mySocketListenFunction);
+    }
+    Future.delayed(Duration(seconds: 3), () {
+      webSocketKeepAlive();
+    });
+  }
+
   @override
   void initState() {
     //print("Heres url: $url");
@@ -187,57 +247,15 @@ class _MyHomePageState extends State<MyHomePage> {
       channel = HtmlWebSocketChannel.connect(url == "localhost" ? "ws://" + (url) + ":8080/socket"
           : window.location.port == "80" ? "ws://" + (url) + "/socket"
           : "wss://" + (url) + "/socket");
-      channel?.stream.listen((data) {
-        Future<Map<String, dynamic>> messageFuture = compute(
-            jsonDecodeIsolate, data);
-        messageFuture.then((Map<String, dynamic> message) {
-          //print("FUTURE RETURN");
-          if (message.containsKey("Served")) {
-            setState(() {
-              _connected = true;
-              _queued = false;
-              _duplicate = false;
-              _served = message["Served"];
-            });
-          }
-          if (message.containsKey("Queue Position")) {
-            setState(() {
-              _connected = true;
-              _queued = true;
-              _queuePosition = message["Queue Position"];
-            });
-          }
-          if (message.containsKey("Duplicate")) {
-            setState(() {
-              _connected = true;
-              _duplicate = message["Duplicate"];
-            });
-          }
-          if (message.containsKey("Image Name")) {
-            String imageName = message["Image Name"];
-            DateTime imageTime = DateTime.parse(message["Image Time"]);
-            /*Future<LinearGradient> gradientFuture = compute(gradientIsolate, rgbMagnitudes);
-            gradientFuture.then((gradient) {
-            /*var gradient = LinearGradient(  
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight, 
-              colors: rgbMagnitudes.cast<int>().map((value) {return Color.fromARGB(255, value, value, value);}).toList()
-            );*/
-            try {
-              gradientController.add(gradient);
-            } on Exception catch(e) {
-              print('error caught: $e');
-            }
-            });*/
-            imageController.add(Tuple2<String, DateTime>(imageName, imageTime));
-          }
-        }
-        );
-      });
+      channel?.stream.listen(mySocketListenFunction);
     }
     catch (_) {
 
     }
+    Future.delayed(Duration(seconds: 3), () {
+      webSocketKeepAlive();
+    });
+
     super.initState();
   }
 
@@ -261,6 +279,7 @@ class _MyHomePageState extends State<MyHomePage> {
     double _height = _mediaQuery.size.height; //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.width :  _mediaQuery.size.height;
     double _myFontSize = (_width < 450 || _height < 450) ? 14 :21;
     double _titleFont = (_width < 450 || _height < 450) ? 31 :41;
+    final spectrogramWindow = RealTimeSpectrogram(height: _height, width: _width, connected: _connected, queued: _queued, queuePosition: _queuePosition, duplicate: _duplicate, served: _served, imageStream: imageController.stream);
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView (
@@ -380,7 +399,7 @@ class _MyHomePageState extends State<MyHomePage> {
             /*(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? Center(child: Text("Please flip your phone around to view content.", style: TextStyle(fontSize:27, color: Colors.white)))
             :*/ _pageSelect == 0 ?
             //Column( children: [Text("Under Construction :)"), Spacer(), Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:uclaBlue)), Spacer()])
-            RealTimeSpectrogram(height: _height, width: _width, connected: _connected, queued: _queued, queuePosition: _queuePosition, duplicate: _duplicate, served: _served, imageStream: imageController.stream)
+            spectrogramWindow
             : _pageSelect == 1 ?
             Padding(
               padding: EdgeInsets.fromLTRB(50, 0, 50, 0),
@@ -544,7 +563,7 @@ class RealTimeSpectrogram extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     double _width = width;
-    double _height = height;
+    double _height = height > 600 ? height : 600;
     return SizedBox(  
           width: _width-18,
           height: _height*0.75,
@@ -645,9 +664,9 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
         _fetchingImage  = false;
         setState(() {
           myImage = image;
-          myTime = data.item2;
+          myTime = data.item2.subtract(Duration(hours: 5));
           //print(getFormatTime(myTime!));
-          laterTime = data.item2.add(Duration(seconds:10));
+          laterTime = data.item2.subtract(Duration(hours:4, minutes: 59, seconds: 50));
           //print(getFormatTime(laterTime!));
         });
       });
