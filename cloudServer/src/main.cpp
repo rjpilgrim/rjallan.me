@@ -143,21 +143,28 @@ int main(int argc, char** argv)
 			std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
 			struct tm timeInfo;
 			struct tm local_tm = *localtime_r(&nowTime, &timeInfo);
-			//printf("GOIN IN: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
-			if ((local_tm.tm_sec) >= (40)) {
+			printf("GOIN IN: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
+			if ((local_tm.tm_sec) >= (50)) {
 				local_tm.tm_min = (local_tm.tm_min + 1) % 60;
 				local_tm.tm_sec = i*2;
 			}
-			else if ((local_tm.tm_sec) >= (20)) {
+			else if ((local_tm.tm_sec) >= (30)) {
+				local_tm.tm_sec = 40 + i*2;
+			}
+			else if ((local_tm.tm_sec) < (10)) {
+				local_tm.tm_sec = i*2;
+			}
+			else if (local_tm.tm_sec > (20 + i*2)) {
 				local_tm.tm_sec = 40 + i*2;
 			}
 			else {
 				local_tm.tm_sec = 20 + i*2;
 			}
-			//printf("DELAYING UNTIL: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
+			printf("DELAYING UNTIL: %d:%d and i: %d\n", local_tm.tm_min, local_tm.tm_sec, i);
 			std::time_t scheduleTime = mktime(&local_tm);
 			auto schedule = std::chrono::system_clock::from_time_t(scheduleTime);
 			std::this_thread::sleep_until(schedule);
+			printf("Thread %d just woke up\n", i);
 			pid_t pid;
 
 			
@@ -168,9 +175,7 @@ int main(int argc, char** argv)
 				break;
 			}
 			else if (pid == 0) {
-				char iAsInt[6];
-				strcpy(iAsInt, (std::to_string(i) + ".mp3").c_str());
-				iAsInt[5] = 0;
+
 				std::string curlCommand = "curl --no-progress-meter --speed-time 11 --speed-limit 100000000000  --output " 
 				+  std::to_string(i) + ".mp3" 
 				/*+ " --trace myTrace.txt --trace-time"*/ 
@@ -181,18 +186,18 @@ int main(int argc, char** argv)
 			}
 			else {
 				if (waitpid(pid, &status, 0) > 0) {
-					//printf("FINISHED CURL for: %d\n", i);
 					if (WIFEXITED(status)) {
 						int es = WEXITSTATUS(status);
+						printf("GOT BAD CURL for: %d, with status: %d\n", i, es);
 						if (es != 28) {
 							continue;
 						}						
 					}
 					
 					std::string filePath = std::to_string(i) + ".wav";
-					std::this_thread::sleep_for(1ms);
+					//std::this_thread::sleep_for(1ms);
 					std::string mpgCommand = "mpg123 -w " + filePath + " " + std::to_string(i) + ".mp3" + " > /dev/null";
-					system(mpgCommand.c_str());
+					int mpgStatus = system(mpgCommand.c_str());
 					FILE * myFile;
 					myFile = fopen(filePath.c_str(), "rb");
 					if (myFile == NULL) {
@@ -218,7 +223,7 @@ int main(int argc, char** argv)
 					fseek(myFile, firstNonzeroSample, SEEK_SET);
 					int currentByte = 0;
 					FILE * imageFile;
-					std::string imageFilePath = std::to_string(i) + ".jpg";
+					std::string imageFilePath = std::to_string(i) + ".jpg.new";
 					imageFile = fopen(imageFilePath.c_str(), "wb");
 					jpeg_create_compress(&jpeg_structs[i]);
 					jpeg_stdio_dest(&jpeg_structs[i], imageFile);
@@ -336,18 +341,34 @@ int main(int argc, char** argv)
 						jpeg_finish_compress(& jpeg_structs[i]);
 						fclose(imageFile);
 						jpeg_destroy_compress(&jpeg_structs[i]);
+						fclose(myFile);
 					}
 					else {
 						fclose(imageFile);
 						jpeg_destroy_compress(&jpeg_structs[i]);
+						fclose(myFile);
 						continue;
 					}
 
-					std::string mv_call = std::string("mv ") + std::to_string(i) + ".jpg" + std::string(" ") + std::to_string(i) + ".jpg.old";
+					std::string cp_call = std::string("cp ") + std::to_string(i) + ".jpg.new" + std::string(" ") + std::to_string(i) + ".jpg.old";
 					std::string flip_call = std::string("jpegtran -flip vertical -outfile ") + std::to_string(i) + ".jpg" + std::string(" ") + std::to_string(i) + ".jpg.old";
 					std::string rm_call = std::string("rm ") + std::to_string(i) + ".jpg.old";
-					std::future<int> f2 = std::async(std::launch::async, [mv_call, flip_call, rm_call]{ system(mv_call.c_str()); system(flip_call.c_str()); return system(rm_call.c_str()); });
-					f2.wait();
+					std::future<int> f2 = std::async(std::launch::async, [cp_call, flip_call, rm_call, i]{ 
+						int systemStatus = 0;
+						systemStatus = system(cp_call.c_str()); 
+						if (systemStatus == -1) {
+							return systemStatus;
+						}
+						systemStatus = system(flip_call.c_str()); 
+						if (systemStatus == -1) {
+							return systemStatus;
+						}
+						return system(rm_call.c_str()); 
+					});
+					int systemStatus = f2.get();
+					if (systemStatus == -1) {
+						continue;
+					}
 					{
 					    std::unique_lock<std::shared_mutex> lock(socket_mutex);
 					    sample_json.clear();
