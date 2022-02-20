@@ -44,22 +44,23 @@ int HackRFStreamer::setFilterBandwidth(uint32_t bandwidth) {
 }
 
 int HackRFStreamer::setupStream() {
-	if (hackrf_set_amp_enable(device, 1) != 0)
-		return -1;
+	/*if (hackrf_set_amp_enable(device, 1) != 0)
+		return -1;*/
 
 	hackrf_set_lna_gain(device, 20);
 
 	hackrf_set_vga_gain(device, 20);
 
-	return hackrf_set_antenna_enable(device, 1);
+	return hackrf_set_antenna_enable(device, 0);
 	//return 0;
 }
 
 int myCallback(hackrf_transfer* transfer) {
-	//printf("IN MY RF CALLBACK\n");
+	//printf("IN MY RF CALLBACK: here is transfer valid length: %d\n", transfer->valid_length);
 	HackRFStreamer * myStreamer =  (HackRFStreamer *) transfer->rx_ctx;
 	std::unique_lock<std::mutex> lck(myStreamer->buffer_mutex);
 	if (myStreamer->valid_length >= 262144) {
+		printf("GOT VALID LENGTH OVERFLOW: here is transfer valid length: %d\n", transfer->valid_length);
 		memmove(myStreamer->thread_buffer, myStreamer->thread_buffer + transfer->valid_length, 262144);
 		myStreamer->valid_length = 262144;
 	}

@@ -13,7 +13,7 @@ public:
 	WAVWriter(std::string file_name = "./radio.wav", int sample_rate = 44100, int samples_per_period = 200);
 	~WAVWriter() override;
 
-	int writeSamples(const short * samples) override;
+	int writeSamples(const int16_t * samples) override;
 
 private:
 	FILE *fp;

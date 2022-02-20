@@ -184,7 +184,7 @@ AlsaStreamer::AlsaStreamer(std::string audio_device, int sample_rate, int sample
 	}
 }
 
-int AlsaStreamer::writeSamples(const short * samples) {
+int AlsaStreamer::writeSamples(const int16_t * samples) {
 	int cptr = samples_per_period;
 	int err = 0;
     while (cptr > 0) {

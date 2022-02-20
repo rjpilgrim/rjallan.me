@@ -29,7 +29,7 @@ WAVWriter::WAVWriter(std::string file_name, int sample_rate, int samples_per_per
     initialize_wav_file(fp);
 }
 
-int WAVWriter::writeSamples(const short * samples) {
+int WAVWriter::writeSamples(const int16_t * samples) {
     //printf("HERE IS samples_per_period: %d\n", samples_per_period);
     //printf("here is first ample: %d\n", samples[0]);
 	int written = fwrite(samples, 2, samples_per_period, fp);

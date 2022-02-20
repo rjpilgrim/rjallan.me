@@ -14,6 +14,11 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(APPLE)
+	find_library(ACCELERATE_LIBRARY Accelerate)
+	message( STATUS "ACCELERATE_LIBRARRY: ${ACCELERATE_LIBRARY}" )
+endif()
+
+if(APPLE)
 	set(LIBUSB_INCLUDE_DIR /usr/local/Cellar/libusb/1.0.24/include/libusb-1.0)
 	set(LIBUSB_LIBRARIES /usr/local/Cellar/libusb/1.0.24/lib/libusb-1.0.a)
 endif()
@@ -21,12 +26,17 @@ endif()
 
 #FIND_PACKAGE(ZLIB REQUIRED) zlib only needed for png implementation
 FIND_PACKAGE(JPEG REQUIRED)
+FIND_PACKAGE(gnuradio REQUIRED COMPONENTS blocks fft filter)
+find_package(gnuradio-fft PATHS ${Gnuradio_DIR})
+find_package(gnuradio-filter PATHS ${Gnuradio_DIR})
+find_package(volk REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 
 
 message( STATUS "CMAKE MODULE PATH: ${CMAKE_MODULE_PATH}" )
 message( STATUS "CMAKE MODULE PATH: ${LIBUSB_INCLUDE_DIR}" )
+message( STATUS "GNURADIO MODULE PATH: ${gnuradio_DIR}" )
 
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../Simple-WebSocket-Server ${CMAKE_CURRENT_BINARY_DIR}/Simple-WebSocket-Server)
@@ -34,7 +44,10 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fftw-3.3.9 ${CMAKE_CURRENT_BINAR
 add_subdirectory(LimeSuite)
 add_subdirectory(hackrf/host/libhackrf/)
 
+
+
 add_executable(main src/main.cpp src/IQWebSocketServer.cpp src/WAVWriter.cpp ${ALSASTREAMER_SRC} src/CommandLine.cpp src/LimeStreamer.cpp src/HackRFStreamer.cpp)
 set_target_properties(main PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 target_include_directories(main PRIVATE hackrf/host/libhackrf/src ${CMAKE_CURRENT_SOURCE_DIR}/../fftw-3.3.9/api ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../Simple-WebSocket-Server ${CMAKE_CURRENT_SOURCE_DIR}/../json/single_include ${Boost_INCLUDE_DIR})
-target_link_libraries(main hackrf simple-websocket-server LimeSuite ${ALSASTREAMER_LIBNAME} fftw3 #[[ZLIB::ZLIB]] JPEG::JPEG ${Boost_LIBRARIES})
+target_link_directories(main PRIVATE /usr/local/Cellar/gnuradio/3.9.3.0_3/lib/ /usr/local/Cellar/volk/2.5.0/lib/)
+target_link_libraries(main hackrf simple-websocket-server LimeSuite ${ALSASTREAMER_LIBNAME} ${ACCELERATE_LIBRARY} fftw3 #[[ZLIB::ZLIB]] JPEG::JPEG ${Boost_LIBRARIES} gnuradio-fft gnuradio-filter volk)
