@@ -24,6 +24,7 @@
 #include <IQWebSocketServer.hpp>
 #include <CommandLine.hpp>
 #include <fir1_1062_18140589569.hpp>
+#include <fir1_100000_17640000_1062.hpp>
 #include <thread>
 #include <gnuradio/filter/firdes.h>
 #include <gnuradio/filter/fir_filter.h>
@@ -35,8 +36,10 @@ using namespace std;
 
 static int my_channel = 0;
 static double mono_band = 15000;
+static double tunedFrequnecy = 93.3e6;
 static double sample_rate = 17640000;
-static int shifter = 16640000; 
+static int sample_rate_int = sample_rate;
+static int frequencyShift = 2000000; 
 static double max_difference = ((mono_band/sample_rate) * 2 * M_PI);
 static std::unique_ptr<AudioSink> audioWriter;
 static std::unique_ptr<RadioStreamer> radioStreamer;
@@ -322,7 +325,7 @@ int error()
 int main(int argc, char** argv)
 {
 	CommandLine commandLine(argc, argv);
-    const int sampleCnt = 5200; 
+    const int sampleCnt = 10400; 
 
 #ifdef _linux_
 
@@ -349,14 +352,14 @@ int main(int argc, char** argv)
         error();
 
     //Set center frequency to 800 MHz
-    if (radioStreamer->setFrequency(82480000/*90.3e6*//*89.7e6*/) < 0)
+    if (radioStreamer->setFrequency(tunedFrequnecy/*89.7e6*/) < 0)
         error();
 
     if (radioStreamer->setSampleRate(sample_rate) < 0)
         error(); 
 
-    //if (radioStreamer->setFilterBandwidth(10e6) < 0)
-    //	error();
+    if (radioStreamer->setFilterBandwidth(10e6) < 0)
+    	error();
 
 
     auto my_server = std::make_unique<IQWebSocketServer>(8079, "^/socket/?$");
@@ -369,8 +372,8 @@ int main(int argc, char** argv)
     if (radioStreamer->setupStream() < 0)
         error();
 
-    int cosineIndexInphase = 0;
-    int cosineIndexQuadrature = shifter/4;
+    int indexSignal = 0;
+    float sineSignal = 0;
 
     double max_Sample = 0;
     double min_Sample = 0;
@@ -378,12 +381,21 @@ int main(int argc, char** argv)
     FILE * rawCSV;
     FILE * shiftedCSV;
     FILE * filteredCSV;
+    FILE * sineCSV;
+    FILE * rawFFT;
+    FILE * shiftedFFT;
     int csvCounter = 0;
     int filteredCSVCounter = 0;
+    int sineCSVCounter = 0;
+    bool rawFFTWritten = false;
+    bool shiftedFFTWritten = false;
     printf("OPEN FILES\n");
     rawCSV = fopen("./raw.csv","w");
     shiftedCSV = fopen("./shifted.csv","w");
     filteredCSV = fopen("./filtered.csv","w");
+    sineCSV = fopen("./sine.csv", "w");
+    rawFFT = fopen("./rawFFT.csv","w");
+    shiftedFFT = fopen("./shiftedFFT.csv","w");
     printf("OPENED FILES\n");
 
     double normalized_fir1_1062_18140589569[1063];
@@ -397,6 +409,19 @@ int main(int argc, char** argv)
 
     for (int i = 0; i < 1063; i++) {
         normalized_fir1_1062_18140589569[i] = gain * fir1_1062_18140589569[i];
+    }
+
+    double normalized_fir1_100000_17640000_1062[1063];
+    fmax = fir1_100000_17640000_1062[531];
+
+    for (int i = 532; i < 1063; i++) {
+        fmax += 2 * fir1_100000_17640000_1062[i];
+    }
+
+    gain = 1.0 / fmax;
+
+    for (int i = 0; i < 1063; i++) {
+        normalized_fir1_100000_17640000_1062[i] = gain * fir1_100000_17640000_1062[i];
     }
 
     double normalized_fir1_8_18140589569[9];
@@ -478,16 +503,20 @@ int main(int argc, char** argv)
     }
 
     std::vector gnuradio_filter_taps = gr::filter::firdes::low_pass(1.0,
-                                 2205000, // Hz
+                                 17640000, // Hz
                                  200000,   // Hz BEGINNING of transition band
                                  5000, // Hz width of transition band
                                  gr::fft::window::win_type::WIN_HAMMING,
                                  6.76);
 
-    std::vector<double> gnuradio_filter_double;
+
+
+    double * gnuradio_filter_double = (double *) malloc(gnuradio_filter_taps.size() * sizeof(double));
 
     for (int i = 0; i<gnuradio_filter_taps.size(); i++) {
-        gnuradio_filter_double.push_back((double)gnuradio_filter_taps[i]);
+        //printf("Here is tap: %f\n", gnuradio_filter_taps[i]);
+        gnuradio_filter_double[i] = (double)gnuradio_filter_taps[i];
+        //printf("Here is tap: %f\n", gnuradio_filter_double[i]);
     }
 
     gr::filter::kernel::fir_filter gnuradio_filter = gr::filter::kernel::fir_filter<float,float,float>(gnuradio_filter_taps);
@@ -506,19 +535,24 @@ int main(int argc, char** argv)
     //complex samples per buffer
     const int afterFirstFilterCnt = sampleCnt/stageOneDecimation;
     const int downSampleCnt = (sampleCnt/stageOneDecimation)/stageTwoDecimation;
-    int16_t buffer[sampleCnt * 2 + 2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation  + 2 * stageOneDecimation]; //buffer to hold complex values (2*samples))
+    int bufferCount = sampleCnt * 2 + 2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation;
+    int bufferOffset = 2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation;
+    int16_t buffer[bufferCount]; //buffer to hold complex values (2*samples))
+    printf("Here is last index: %d\n", sampleCnt * 2 + 2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation);
 
-    double bufferShifted[sampleCnt * 2 + 2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation];
+    
+
+    double bufferShifted[bufferCount];
     
     uint32_t audio_sample_count = 0;
 
-    double *fft_in;
+    fftw_complex *fft_in;
     fftw_complex *fft_out;
     fftw_plan fft_plan;
 
-    fft_in = (double*) fftw_malloc(sizeof(double) * 2048);
-    fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 1025);
-    fft_plan = fftw_plan_dft_r2c_1d(2048, fft_in, fft_out, FFTW_MEASURE);
+    fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2048);
+    fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * 2048);
+    fft_plan = fft_plan = fftw_plan_dft_1d(2048, fft_in, fft_out, FFTW_FORWARD, FFTW_MEASURE);
 
     //Start streaming
     if (radioStreamer->startStream() < 0)
@@ -533,49 +567,95 @@ int main(int argc, char** argv)
     double difference[afterFirstFilterCnt + filterLengthTwo];
     double demodded[afterFirstFilterCnt + filterLengthTwo];
     double convert_to_pcm[afterFirstFilterCnt];
+    double compare_to_pcm[afterFirstFilterCnt];
     int16_t downsampled_audio[downSampleCnt];
+
+    const float shiftFactor = frequencyShift/sample_rate;
+    printf("Here is shiftfactor: %f\n", shiftFactor);
 
     auto t1 = chrono::high_resolution_clock::now();
     while ( ((commandLine.audio == alsa) ? true : false) || (chrono::high_resolution_clock::now() - t1 < chrono::seconds(12)) )
     {   
         //Receive samples
-        int samplesRead = radioStreamer->receiveSamples(&(buffer[2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation]), sampleCnt);
+        int samplesRead = radioStreamer->receiveSamples(&(buffer[bufferOffset]), sampleCnt);
 
         //printf("Here is realCosine: %f\n", cos(2*M_PI*((double) cosineIndexInphase/shifter)));
         //printf("Here is imagCosine: %f\n", cos(2*M_PI*((double) cosineIndexQuadrature/shifter)));
-        for (int i = 0; i < (samplesRead); ++i) {
-            //int inPhaseIndex =  1024 * ((double) cosineIndexInphase / (double) shifter);
-            //int quadratureIndex = 1024 * ((double) cosineIndexQuadrature / (double) shifter);
-            double realCosine = sinFlipper ? -1.0 : 1.0;
-            //const double & realCosine = sin1024[inPhaseIndex];
-            double imagCosine = 0.0;
-            //const double & imagCosine = sin1024[quadratureIndex];
-            double  bufferReal = ((double) buffer[2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation + 2*i])/128.0;
-            double  bufferImag = ((double) buffer[2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation + 2*i+1])/128.0;
-            /*
-            if (csvCounter < 50000) {
-                fprintf(rawCSV, "%d,%f,%f\n",csvCounter,bufferReal, bufferImag);
+        if (!rawFFTWritten) {
+            for (int i = 0; i<2048; i++) {
+                fft_in[i][0] = buffer[bufferOffset + 2*i] * hann2048[i];
+                fft_in[i][1] = 1 * buffer[bufferOffset + 2*i + 1] * hann2048[i];
+
             }
-            */
+            fftw_execute(fft_plan);
+            for (int i = 0; i<2048; i++) {
+                std::complex<double> bin(fft_out[i][0], fft_out[i][1]);
+                double modulus = std::abs(bin);
+                fprintf(rawFFT, "%d,%f,\n",i,modulus);
+            }
+            rawFFTWritten = true;
+        }
+        for (int i = 0; i < (samplesRead); ++i) {
+            float junk;
+            sineSignal = modf( sineSignal, &junk); //remainder(((float) indexSignal) * shiftFactor, 1);
+            int inPhaseIndex =  1024 * sineSignal;
+            int quadratureIndex = ((int)(1024 * sineSignal) + 256) % 1024;
+            if (inPhaseIndex >= 1024) {
+                inPhaseIndex = 1023;
+            }
+            if (quadratureIndex >= 1024) {
+                quadratureIndex = 1023;
+            }
+
+            //double realCosine = sinFlipper ? -1.0 : 1.0;
+            const float & imagCosine = sin1024[inPhaseIndex];
+            //double imagCosine = 0.0;
+            const float & realCosine = sin1024[quadratureIndex];
+            /*if (sineCSVCounter < 50000) {
+                fprintf(sineCSV, "%d,%f,%f\n",sineCSVCounter,realCosine, imagCosine);
+                sineCSVCounter++;
+            }*/
+            //printf("BEFORE BUFFER ACESS\n");
+            float  bufferReal = ((float) buffer[bufferOffset + 2*i])/128.0;
+            float  bufferImag = ((float) buffer[bufferOffset + 2*i+1])/128.0;
+            //printf("AFTER BUFFER ACESS\n");
+            
+            /*if (csvCounter < 50000) {
+                fprintf(rawCSV, "%d,%f,%f\n",csvCounter,bufferReal, bufferImag);
+            }*/
+            
             //printf("Here is bufferReal: %f\n", bufferReal);
             //printf("Here is bufferImag: %f\n", bufferImag);
 
-            bufferShifted[2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation + 2*i] = bufferReal * realCosine - bufferImag * imagCosine;
-            bufferShifted[2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation + 2*i+1] = bufferReal * imagCosine + bufferImag * realCosine;
+            bufferShifted[bufferOffset + 2*i] = bufferReal * realCosine - bufferImag * imagCosine;
+            bufferShifted[bufferOffset + 2*i+1] = bufferReal * imagCosine + bufferImag * realCosine;
             
             /*if (csvCounter < 50000) {
                 fprintf(shiftedCSV,"%d,%f,%f\n",csvCounter,bufferShifted[2 * filterLengthOne + 2 * filterLengthTwo + 2 + 2*i], bufferShifted[2 * filterLengthOne + 2 * filterLengthTwo + 2 + 2*i+1]);
                 csvCounter++;
             }*/
             
-            cosineIndexInphase = (cosineIndexInphase + 1) % shifter;
-            cosineIndexQuadrature = (cosineIndexQuadrature + 1) % shifter;
-            
-            sinFlipper = !sinFlipper;
+            //cosineIndexInphase = (cosineIndexInphase + 1) % sample_rate;
+            //cosineIndexQuadrature = (cosineIndexQuadrature + 1) % sample_rate;
+            //sinFlipper = !sinFlipper;
+            //indexSignal = (indexSignal + 1) % sample_rate_int;
+            sineSignal += shiftFactor;
         }
 
+        if (!shiftedFFTWritten) {
+            for (int i = 0; i<2048; i++) {
+                fft_in[i][0] = bufferShifted[bufferOffset + 2*i] * hann2048[i];
+                fft_in[i][1] = 1 * bufferShifted[bufferOffset + 2*i]  * hann2048[i];
+            }
+            fftw_execute(fft_plan);
+            for (int i = 0; i<2048; i++) {
+                std::complex<double> bin(fft_out[i][0], fft_out[i][1]);
+                double modulus = std::abs(bin);
+                fprintf(shiftedFFT, "%d,%f,\n",i,modulus);
+            }
+            shiftedFFTWritten = true;
+        }
         
-
         //printf("HERE IS BUFFERSHIFTED: %f and imag: %f\n", bufferShifted[4 * filter_order + 2], bufferShifted[4 * filter_order + 2+1]);
 
         if (samplesRead != sampleCnt) {
@@ -583,10 +663,11 @@ int main(int argc, char** argv)
             break;
         }
         else if (chrono::high_resolution_clock::now() - t1 < chrono::seconds(3)) {
-            memcpy(buffer, &(buffer[sampleCnt * 2]), (2 * filterLengthOne  + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation) * sizeof(int16_t));
-            memcpy(bufferShifted, &(bufferShifted[sampleCnt * 2]), (2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation)* sizeof(double));
+            memcpy(buffer, &(buffer[sampleCnt * 2]), (bufferOffset) * sizeof(int16_t));
+            memcpy(bufferShifted, &(bufferShifted[sampleCnt * 2]), (bufferOffset)* sizeof(double));
         }
         else {  
+        //printf("START REAL LOOP\n");
         memset(bufferFiltered, 0, (sampleCnt * 2 + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation) * sizeof(double));
 
         memset(decimatedFilter, 0, (afterFirstFilterCnt * 2 + filterLengthTwo * 2 + 2) * sizeof(double));
@@ -658,9 +739,9 @@ for (int i = 0, j = 0;
 #else
                 double realSum = 0;
                 double imagSum = 0;
-                for (p = 0;  p < filterLengthOne; ++p) {
+                for (int p = 0;  p < filterLengthOne; ++p) {
                     realSum += bufferShifted[n * stageOneDecimation * 2 + 2*p] * filter_coeff_one[p];
-                    imagSum =+ bufferShifted[n * stageOneDecimation * 2 + 1 + 2*p] * filter_coeff_one[p];
+                    imagSum += bufferShifted[n * stageOneDecimation * 2 + 1 + 2*p] * filter_coeff_one[p];
                 }
                 decimatedFilter[2*n] = realSum;
                 decimatedFilter[2*n+1] = imagSum;
@@ -686,7 +767,7 @@ for (int i = 0, j = 0;
             */
 #ifdef __APPLE__
             for (int i = 0; i < (samplesFiltered-1); ++i) {
-                if (filteredCSVCounter < 50000) {
+                if (filteredCSVCounter < 1000) {
                     fprintf(filteredCSV, "%d,%f,%f\n",filteredCSVCounter,realDecimatedFilter[i], imagDecimatedFilter[i]);
                     filteredCSVCounter++;
                 }
@@ -694,8 +775,8 @@ for (int i = 0, j = 0;
                 double &undelayedComplex = imagDecimatedFilter[i];
                 double &delayedReal = realDecimatedFilter[i+1];
                 double &delayedComplex = imagDecimatedFilter[i+1];
-                double productReal = undelayedReal * delayedReal - (-1 * undelayedComplex) * delayedComplex;
-                double productComplex = undelayedReal * delayedComplex + (-1 * undelayedComplex) * delayedReal;
+                double productReal = undelayedReal * delayedReal - ((-undelayedComplex) * delayedComplex);
+                double productComplex = undelayedReal * delayedComplex + ((-undelayedComplex) * delayedReal);
                 demodded[i] = (double) fast_atan2f((float)productComplex, (float)productReal);
             }
 #else       
@@ -724,8 +805,9 @@ for (int i = 0, j = 0;
             //printf("Here convert to pcm: %lf\n", convert_to_pcm[0]);
 
 	        for (int i = 0; i < ((afterFirstFilterCnt)/stageTwoDecimation); ++i) {
-	            downsampled_audio[i] = (int16_t) ((convert_to_pcm[i * stageTwoDecimation]) * (MAX_PCM));
+	            downsampled_audio[i] = (int16_t) ((convert_to_pcm[i * stageTwoDecimation]) * (MAX_PCM/2));
 	            if (downsampled_audio[i] >= MAX_PCM) {
+                    printf("GOT MAX PCM\n");
 	                downsampled_audio[i] = MAX_PCM;
 	            }
 	        }
@@ -738,8 +820,8 @@ for (int i = 0, j = 0;
             printf("I got an exception: %d\n", e);
             break;
         }
-            memcpy(buffer, &(buffer[sampleCnt * 2]), (2 * filterLengthOne  + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation) * sizeof(int16_t));
-            memcpy(bufferShifted, &(bufferShifted[sampleCnt * 2]), (2 * filterLengthOne + 2 * filterLengthTwo * stageOneDecimation + 2 * stageOneDecimation)* sizeof(double));
+            memcpy(buffer, &(buffer[sampleCnt * 2]), (bufferOffset) * sizeof(int16_t));
+            memcpy(bufferShifted, &(bufferShifted[sampleCnt * 2]), (bufferOffset)* sizeof(double));
         }
     
     }
@@ -758,6 +840,10 @@ for (int i = 0, j = 0;
     fclose(rawCSV);
     fclose(shiftedCSV);
     fclose(filteredCSV);
+    fclose(sineCSV);
+    fclose(rawFFT);
+    fclose(shiftedFFT);
+    free(gnuradio_filter_double);
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(100ms);
 
