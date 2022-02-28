@@ -39,7 +39,8 @@ static double mono_band = 15000;
 static double tunedFrequnecy = 93.3e6;
 static double sample_rate = 17640000;
 static int sample_rate_int = sample_rate;
-static int frequencyShift = 2000000; 
+static double frequencyShift = 2000000; 
+static int frequencyShiftInt = frequencyShift;
 static double max_difference = ((mono_band/sample_rate) * 2 * M_PI);
 static std::unique_ptr<AudioSink> audioWriter;
 static std::unique_ptr<RadioStreamer> radioStreamer;
@@ -581,6 +582,7 @@ int main(int argc, char** argv)
 
         //printf("Here is realCosine: %f\n", cos(2*M_PI*((double) cosineIndexInphase/shifter)));
         //printf("Here is imagCosine: %f\n", cos(2*M_PI*((double) cosineIndexQuadrature/shifter)));
+        /*
         if (!rawFFTWritten) {
             for (int i = 0; i<2048; i++) {
                 fft_in[i][0] = buffer[bufferOffset + 2*i] * hann2048[i];
@@ -595,6 +597,7 @@ int main(int argc, char** argv)
             }
             rawFFTWritten = true;
         }
+        */
         for (int i = 0; i < (samplesRead); ++i) {
             float junk;
             sineSignal = modf( sineSignal, &junk); //remainder(((float) indexSignal) * shiftFactor, 1);
@@ -609,8 +612,10 @@ int main(int argc, char** argv)
 
             //double realCosine = sinFlipper ? -1.0 : 1.0;
             const float & imagCosine = sin1024[inPhaseIndex];
+            //double realCosine = sin(2 * M_PI * frequencyShift/sample_rate * indexSignal);
             //double imagCosine = 0.0;
             const float & realCosine = sin1024[quadratureIndex];
+            //double imagCosine = cos(2 * M_PI * frequencyShift/sample_rate * indexSignal);
             /*if (sineCSVCounter < 50000) {
                 fprintf(sineCSV, "%d,%f,%f\n",sineCSVCounter,realCosine, imagCosine);
                 sineCSVCounter++;
@@ -641,11 +646,11 @@ int main(int argc, char** argv)
             //indexSignal = (indexSignal + 1) % sample_rate_int;
             sineSignal += shiftFactor;
         }
-
+/*
         if (!shiftedFFTWritten) {
             for (int i = 0; i<2048; i++) {
                 fft_in[i][0] = bufferShifted[bufferOffset + 2*i] * hann2048[i];
-                fft_in[i][1] = 1 * bufferShifted[bufferOffset + 2*i]  * hann2048[i];
+                fft_in[i][1] = 1 * bufferShifted[bufferOffset + 2*i + 1]  * hann2048[i];
             }
             fftw_execute(fft_plan);
             for (int i = 0; i<2048; i++) {
@@ -655,7 +660,7 @@ int main(int argc, char** argv)
             }
             shiftedFFTWritten = true;
         }
-        
+*/     
         //printf("HERE IS BUFFERSHIFTED: %f and imag: %f\n", bufferShifted[4 * filter_order + 2], bufferShifted[4 * filter_order + 2+1]);
 
         if (samplesRead != sampleCnt) {
@@ -767,10 +772,10 @@ for (int i = 0, j = 0;
             */
 #ifdef __APPLE__
             for (int i = 0; i < (samplesFiltered-1); ++i) {
-                if (filteredCSVCounter < 1000) {
+                /*if (filteredCSVCounter < 1000) {
                     fprintf(filteredCSV, "%d,%f,%f\n",filteredCSVCounter,realDecimatedFilter[i], imagDecimatedFilter[i]);
                     filteredCSVCounter++;
-                }
+                }*/
                 double &undelayedReal = realDecimatedFilter[i];
                 double &undelayedComplex = imagDecimatedFilter[i];
                 double &delayedReal = realDecimatedFilter[i+1];
