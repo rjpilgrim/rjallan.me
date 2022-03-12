@@ -1,3 +1,4 @@
+#include <vector>
 //octave:3> fir1(1062,0.18140589569)
 //ans =
  
@@ -428,3 +429,18 @@
  
 
   ,-2.25585728399645e-05  ,2.283793160992807e-06  ,2.629355388223621e-05 };
+
+std::array<double,1063> normalized_fir1_1062_18140589569() 
+{
+  std::array<double,1063> normalized_fir1_1062_18140589569;
+  double fmax = fir1_1062_18140589569[531];
+  for (int i = 532; i < 1063; i++) {
+    fmax += 2 * fir1_1062_18140589569[i];
+  }
+  double gain = 1.0 / fmax;
+
+  for (int i = 0; i < 1063; i++) {
+      normalized_fir1_1062_18140589569[i] = gain * fir1_1062_18140589569[i];
+  }
+  return normalized_fir1_1062_18140589569;
+};
