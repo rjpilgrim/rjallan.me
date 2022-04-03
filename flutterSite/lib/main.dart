@@ -10,6 +10,7 @@ import 'dart:ui' as dart_ui;
 //import 'dart:typed_data';
 import 'dart:core';
 import 'dart:js' as js;
+import 'package:js/js.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -21,6 +22,7 @@ import 'package:tuple/tuple.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 //import 'hann1024.dart';
+import 'package:uuid/uuid.dart';
 
 Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
   return jsonDecode(responseBody);
@@ -40,6 +42,9 @@ Future<dart_ui.Image> fetchImage(String url) async {
 void main() {
   runApp(MyApp());
 }
+
+@JS('functionName')
+external set _functionName(void Function() f);
 
 class MyApp extends StatelessWidget {
   @override
@@ -84,7 +89,11 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
+var uuid = Uuid();
+
 class _MyHomePageState extends State<MyHomePage> {
+  bool _loadAudio = false;
+  var _playUUID = uuid.v1();
   bool _playing = false;
   int _pageSelect = 0;
   bool _homeHover = false;
@@ -105,10 +114,28 @@ class _MyHomePageState extends State<MyHomePage> {
 
   StreamController<Tuple2<String, DateTime>> imageController = StreamController<Tuple2<String, DateTime>>.broadcast(); 
 
+  void setFinished() {
+    setState(() {
+      _loadAudio = false;
+      _playing = true;
+      print("FINISHED LOADING");
+    });
+  }
+
   void _playAudio() {
+    _functionName = allowInterop(setFinished);
     setState(() {
       if (!_playing) {
-        _playing = true;
+        _playUUID = uuid.v1();
+        var myUUID = _playUUID;
+        _loadAudio = true;
+        Future.delayed(Duration(seconds: 10), () {
+          if (myUUID == _playUUID) {
+            setState(() {
+              _loadAudio = false;
+            });
+          }
+        });
         js.context.callMethod('playAudio', [_connected ? "https://stream-relay-geo.ntslive.net/stream2" /*"http://"+(url)+"/play/hls/index.m3u8"*/ : "https://stream-relay-geo.ntslive.net/stream2", false]);
       }
       else {
@@ -300,7 +327,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       shape: CircleBorder(),
                     ),
                     height: (_width < 450) ? 40 :50,
-                    child: IconButton(
+                    child: _loadAudio ? Padding(padding: EdgeInsets.fromLTRB(2, 20, 2, 20),child: CircularProgressIndicator(value: null)) : IconButton(
                       icon: _playing ? Icon(Icons.pause) : Icon(Icons.play_arrow),
                       color: Colors.white,
                       tooltip: _playing ? (/*_connected ? 'Stop digitally demodulated audio' :*/ 'Stop NTS Radio')
@@ -494,9 +521,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),*/
                     SizedBox(height: 10),
                     Text(
-                      "This site is hosted on an Ubuntu machine running in Digital Ocean. " +
-                      "In addition to showing the spectrogram for NTS Radio on this site, I am working to show radio spectrum data from a local SDR."
-                        ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
+                      "This site is hosted on an Ubuntu machine running in Digital Ocean." ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                     ),
                     SizedBox(height: 10),
                     MouseRegion(

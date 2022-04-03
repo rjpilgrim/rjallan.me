@@ -30,30 +30,62 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <audio id="audio"></audio>
   <script type="application/javascript">
+    function iOS() {
+      return [
+        'iPad Simulator',
+        'iPhone Simulator',
+        'iPod Simulator',
+        'iPad',
+        'iPhone',
+        'iPod'
+      ].includes(navigator.platform)
+      // iPad on iOS 13 detection
+      || (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+    }
     var audio = document.getElementById('audio');
     function playAudio(path, connected) {
       if (!connected) {
-        console.log("SUP");
         audio.src = path;
+        audio.addEventListener("canplay", function () {
+          /*if (iOS()) {
+            setTimeout(function() {
+              functionName();
+            }, 1000);
+          }
+          else {
+            functionName();
+          }*/
+          functionName();
+        });
         audio.addEventListener('loadedmetadata', function () {
           audio.play();
         });
       }
       else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
         audio.src = path;
+        audio.addEventListener("canplay", function () {
+          /*if (iOS()) {
+            setTimeout(function() {
+              functionName();
+            }, 1000);
+          }
+          else {
+            functionName();
+          }*/
+          functionName();
+        });
         audio.addEventListener('loadedmetadata', function () {
           audio.play();
         });
       }
       else if (Hls.isSupported()) {
-         console.log(path);
         Hls.DefaultConfig.debug = true;
         var hls = new Hls();
         hls.loadSource(path);
         hls.attachMedia(audio)
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-           console.log("Hello play!");
           audio.play();
+          functionName();
         });
       }
     }
