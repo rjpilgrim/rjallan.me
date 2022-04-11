@@ -23,6 +23,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 //import 'hann1024.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 Map<String,dynamic> jsonDecodeIsolate(dynamic responseBody) {
   return jsonDecode(responseBody);
@@ -38,8 +39,11 @@ Future<dart_ui.Image> fetchImage(String url) async {
   return frame.image;
 }
 
+var removedSplash = false;
 
 void main() {
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   runApp(MyApp());
 }
 
@@ -105,6 +109,10 @@ class _MyHomePageState extends State<MyHomePage> {
   int  _queuePosition = 0;
   bool _duplicate = false;
   bool _served = false;
+
+  dart_ui.Image? vladImage;
+  dart_ui.Image? frktlImage;
+  dart_ui.Image? ahoImage;
 
   late ScrollController _aboutController;
   late ScrollController _whatController;
@@ -261,6 +269,10 @@ class _MyHomePageState extends State<MyHomePage> {
       channel?.stream.listen(mySocketListenFunction);
     }
     Future.delayed(Duration(seconds: 3), () {
+      if (!removedSplash) {
+        removedSplash = true;
+        FlutterNativeSplash.remove();
+      }
       webSocketKeepAlive();
     });
   }
@@ -284,6 +296,33 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     super.initState();
+    () async {
+      var response = await http.get(Uri.parse("https://"+url+"/vlad.jpg"));
+      var codec = await dart_ui.instantiateImageCodec(
+          response.bodyBytes); //Uint8List
+      var frame = await codec.getNextFrame();
+      this.setState(() {
+        vladImage = frame.image;
+      });
+    }();
+    () async {
+      var response = await http.get(Uri.parse("https://"+url+"/frktl.jpg"));
+      var codec = await dart_ui.instantiateImageCodec(
+          response.bodyBytes); //Uint8List
+      var frame = await codec.getNextFrame();
+      this.setState(() {
+        frktlImage = frame.image;
+      });
+    }();
+    () async {
+      var response = await http.get(Uri.parse("https://"+url+"/aho.jpg"));
+      var codec = await dart_ui.instantiateImageCodec(
+          response.bodyBytes); //Uint8List
+      var frame = await codec.getNextFrame();
+      this.setState(() {
+        ahoImage = frame.image;
+      });
+    }();
   }
 
   @override
@@ -520,17 +559,13 @@ class _MyHomePageState extends State<MyHomePage> {
                       ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                     ),*/
                     SizedBox(height: 10),
-                    Text(
-                      "This site is hosted on an Ubuntu machine running in Digital Ocean." ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
-                    ),
-                    SizedBox(height: 10),
                     MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: RichText(
                         text: TextSpan(
                           style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
                           children: <TextSpan>[
-                            TextSpan(text: 'You can follow along with the code for this site over ',
+                            TextSpan(text: 'This site is hosted on an Ubuntu machine running in Digital Ocean. You can follow along with the code for this site over ',
                                 recognizer: TapGestureRecognizer()
                                   ..onTap = () {
                                     launch("https://github.com/rjpilgrim/rjallan.me");
@@ -553,6 +588,159 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ),
                     ),
+                    SizedBox(height: 10),
+                    RichText(
+                        text: TextSpan(
+                          style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
+                          children: <TextSpan>[TextSpan(text:
+                          "As an example, I captured an interesting transition over three minutes of "
+                          ),
+                            TextSpan(text: 'this stream by Breakwave.',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://www.nts.live/shows/breakwave/episodes/breakwave-14th-february-2021");
+                                  }),
+                            TextSpan(text:
+                            " At around 21:45 in the mix, "
+                            ),
+                            TextSpan(text: '\"In the After\"',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://dobrovolski.bandcamp.com/track/in-the-after");
+                                  }),
+                            TextSpan(
+                              text: ' by ',
+                            ),
+                            TextSpan(text: 'Vlad Dobrovolski',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://dobrovolski.net/");
+                                  }),
+                            TextSpan(
+                              text: ' presides over the mix, characterized by repetitive chimes along the same frequency lines:',
+                            ),
+                          ],
+                        )
+                    ),
+                    SizedBox(height: 20),
+                    Container(
+                      //constraints: BoxConstraints.expand(),
+                      width:  _mediaQuery.size.width - 18,
+                      height: (_mediaQuery.size.height > 600 ? 600 : _mediaQuery.size.height) * .75,
+                      child:
+                      (vladImage == null ? LinearProgressIndicator() : FittedBox(
+                          fit: BoxFit.fill,
+                          child: SizedBox(
+                              width: vladImage!.width.toDouble(),
+                              height: vladImage!.height.toDouble(),
+                              child: CustomPaint(
+                                painter: ImagePainter(vladImage!),
+                                child: Center(child: Text(""))
+                          )
+                          )
+                        )
+                      )
+                    ),
+                    //Image.network("https://"+url+"/vlad.jpg", width: _mediaQuery.size.width - 18, height: (_mediaQuery.size.height > 600 ? 600 : _mediaQuery.size.height) * .75),
+                    SizedBox(height: 20),
+                    RichText(
+                        text: TextSpan(
+                          style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
+                          children: <TextSpan>[
+                            TextSpan(text:
+                            "At around 22:30 in the mix, "
+                            ),
+                            TextSpan(text: '\"Gestalt Approach\"',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://frktl.bandcamp.com/track/gestalt-approach");
+                                  }),
+                            TextSpan(
+                              text: ' by ',
+                            ),
+                            TextSpan(text: 'FRKTL',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://frktl.com/");
+                                  }),
+                            TextSpan(
+                              text: ' is overlaid over Dobrovolski, causing those same chiming frequency lines to be overlaid with additional texture, including some formant patterns seen near the bottom of the image from the chanting in FRKTL\'s track:',
+                            ),
+                          ],
+                        )
+                    ),
+                    SizedBox(height: 20),
+                    Container(
+                        //constraints: BoxConstraints.expand(),
+                        width:  _mediaQuery.size.width - 18,
+                        height: (_mediaQuery.size.height > 600 ? 600 : _mediaQuery.size.height) * .75,
+                        child:
+                        (frktlImage == null ? LinearProgressIndicator() : FittedBox(
+                            fit: BoxFit.fill,
+                            child: SizedBox(
+                                width: frktlImage!.width.toDouble(),
+                                height: frktlImage!.height.toDouble(),
+                                child: CustomPaint(
+                                  painter: ImagePainter(frktlImage!),
+                                  child: Center(child: Text(""))
+                              )
+                            )
+                        ))
+                    ),
+                    //Image.network("https://"+url+"/frktl.jpg", width: _mediaQuery.size.width - 18, height: (_mediaQuery.size.height > 600 ? 600 : _mediaQuery.size.height) * .75),
+                    SizedBox(height: 20),
+                    RichText(
+                        text: TextSpan(
+                          style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
+                          children: <TextSpan>[
+                            TextSpan(text:
+                            "Finally, at around 24:00 in the mix, "
+                            ),
+                            TextSpan(text: '\"Simulacrum IV\"',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://ahossan.bandcamp.com/track/simulacrum-iv");
+                                  }),
+                            TextSpan(
+                              text: ' by ',
+                            ),
+                            TextSpan(text: 'Aho Ssan',
+                                style: TextStyle(color: Colors.deepPurple),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    launch("https://ahossan.bandcamp.com/");
+                                  }),
+                            TextSpan(
+                              text: ' dominates the mix, characterized by harsh and chaotic noise, resulting in the following highly dense and energetic capture:',
+                            ),
+                          ],
+                        )
+                    ),
+                    SizedBox(height: 20),
+                    Container(
+                        //constraints: BoxConstraints.expand(),
+                        width:  _mediaQuery.size.width - 18,
+                        height: (_mediaQuery.size.height > 600 ? 600 : _mediaQuery.size.height) * .75,
+                        child:
+                        (ahoImage == null ? LinearProgressIndicator() : FittedBox(
+                            fit: BoxFit.fill,
+                            child: SizedBox(
+                                width: ahoImage!.width.toDouble(),
+                                height: ahoImage!.height.toDouble(),
+                                child: CustomPaint(
+                                  painter: ImagePainter(ahoImage!),
+                                  child: Center(child: Text(""))
+                            )
+                            )
+                        ))
+                    ),
+                    //Image.network("https://"+url+"/aho.jpg", width: _mediaQuery.size.width - 18, height: (_mediaQuery.size.height > 600 ? 600 : _mediaQuery.size.height) * .75),
                     SizedBox(height: 20),
                   ]
                 )
@@ -689,9 +877,9 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
         _fetchingImage  = false;
         setState(() {
           myImage = image;
-          myTime = data.item2.subtract(Duration(hours: 5));
+          myTime = data.item2.subtract(Duration(hours: 4));
           //print(getFormatTime(myTime!));
-          laterTime = data.item2.subtract(Duration(hours:4, minutes: 59, seconds: 50));
+          laterTime = data.item2.subtract(Duration(hours:3, minutes: 59, seconds: 50));
           //print(getFormatTime(laterTime!));
         });
       });
@@ -699,6 +887,10 @@ class _SpectrogramWindowState extends State<SpectrogramWindow> {
     }
     );
     super.initState();
+    if (!removedSplash) {
+      removedSplash = true;
+      FlutterNativeSplash.remove();
+    }
   }
 
   String getFormatTime(DateTime time) {

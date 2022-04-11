@@ -1,3 +1,4 @@
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.rjallandotme">
     <!-- io.flutter.app.FlutterApplication is an android.app.Application that
@@ -6,7 +7,7 @@
          additional functionality it is fine to subclass or reimplement
          FlutterApplication and put your custom class here. -->
     <application
-        android:name="io.flutter.app.FlutterApplication"
+        android:name="${applicationName}"
         android:label="rjallandotme"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -44,4 +45,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
+    <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
 </manifest>
