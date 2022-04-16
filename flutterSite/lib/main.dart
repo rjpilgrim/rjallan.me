@@ -109,6 +109,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int  _queuePosition = 0;
   bool _duplicate = false;
   bool _served = false;
+  bool _websocketFailed = false;
 
   dart_ui.Image? vladImage;
   dart_ui.Image? frktlImage;
@@ -217,6 +218,9 @@ class _MyHomePageState extends State<MyHomePage> {
       Future<Map<String, dynamic>> messageFuture = compute(
           jsonDecodeIsolate, data);
       messageFuture.then((Map<String, dynamic> message) {
+        setState(() {
+          _websocketFailed = false;
+        });
         //print("FUTURE RETURN");
         if (message.containsKey("Served")) {
           setState(() {
@@ -263,10 +267,19 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void webSocketKeepAlive() {
     if (channel == null || channel?.closeCode != null) {
-      channel = HtmlWebSocketChannel.connect(url == "localhost" ? "ws://" + (url) + ":8080/socket"
-          : window.location.port == "80" ? "ws://" + (url) + "/socket"
-          : "wss://" + (url) + "/socket");
-      channel?.stream.listen(mySocketListenFunction);
+      setState(() {
+        _websocketFailed = true;
+      });
+      try {
+        channel = HtmlWebSocketChannel.connect(
+            url == "localhost" ? "ws://" + (url) + ":8080/socket"
+                : window.location.port == "80" ? "ws://" + (url) + "/socket"
+                : "wss://" + (url) + "/socket");
+        channel?.stream.listen(mySocketListenFunction);
+      }
+      catch(_) {
+
+      }
     }
     Future.delayed(Duration(seconds: 3), () {
       if (!removedSplash) {
@@ -289,7 +302,9 @@ class _MyHomePageState extends State<MyHomePage> {
       channel?.stream.listen(mySocketListenFunction);
     }
     catch (_) {
-
+      setState(() {
+        _websocketFailed = true;
+      });
     }
     Future.delayed(Duration(seconds: 3), () {
       webSocketKeepAlive();
@@ -343,7 +358,7 @@ class _MyHomePageState extends State<MyHomePage> {
     var  _mediaQuery = MediaQuery.of(context);
     double _width = _mediaQuery.size.width;  //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.height :  _mediaQuery.size.width;
     double _height = _mediaQuery.size.height; //(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? _mediaQuery.size.width :  _mediaQuery.size.height;
-    double _myFontSize = (_width < 450 || _height < 450) ? 14 :21;
+    double _myFontSize = (_width < 600 || _height < 450) ? 14 :21;
     double _titleFont = (_width < 450 || _height < 450) ? 31 :41;
     final spectrogramWindow = RealTimeSpectrogram(height: _height, width: _width, connected: _connected, queued: _queued, queuePosition: _queuePosition, duplicate: _duplicate, served: _served, imageStream: imageController.stream);
     return Scaffold(
@@ -454,18 +469,24 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ],mainAxisAlignment: MainAxisAlignment.center)
             ),
-            Divider(
+            /*Divider(
               color: uclaBlue,
               endIndent: _width <= 530 ? roundUpToNumber((_width - 450)/2, 0) :40,
               indent: _width <= 530 ? roundUpToNumber((_width - 450)/2, 0)  :40,
               height: 5,
               thickness: 5,
+            ),*/
+            Container(
+              color: uclaBlue,
+              padding: EdgeInsets.fromLTRB(_width <= 530 ? roundUpToNumber((_width - 450)/2, 0) :40, 0, _width <= 530 ? roundUpToNumber((_width - 450)/2, 0) :40, 0),
+              height: 5
             ),
             SizedBox(height: 10),
             /*(_mediaQuery.size.height < 450 &&  _mediaQuery.size.width > _mediaQuery.size.height) ? Center(child: Text("Please flip your phone around to view content.", style: TextStyle(fontSize:27, color: Colors.white)))
             :*/ _pageSelect == 0 ?
             //Column( children: [Text("Under Construction :)"), Spacer(), Center(child: Loading(indicator: LineScaleIndicator(), size: 100.0, color:uclaBlue)), Spacer()])
-            spectrogramWindow
+            (_websocketFailed ? Padding(padding: EdgeInsets.fromLTRB(0, 50, 0, 50), child: Center(child: Text("Spectrogram View is down :(", style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),)))
+                : spectrogramWindow)
             : _pageSelect == 1 ?
             Padding(
               padding: EdgeInsets.fromLTRB(50, 0, 50, 0),
@@ -473,13 +494,16 @@ class _MyHomePageState extends State<MyHomePage> {
                 children:  [
                   /*MouseRegion(
                   cursor: SystemMouseCursors.click,
-                  child: */RichText(
+                  child: */
+                  Padding(
+                  padding: EdgeInsets.fromLTRB(0, 0, 0, 10),
+                  child: RichText(
                     text: TextSpan(
                       style: TextStyle(fontSize: _myFontSize,  color: Colors.black87, fontFamily: "Muli"),
                       children: <TextSpan>[
                         TextSpan(text:
                             "I am a software engineer who loves to work on novel and challenging projects that bridge the gap between high and low level technologies. " +
-                            "I have recent experience with applications in IOT, wireless communications, graphics" +
+                            "I have recent experience with applications in IoT, wireless communications, graphics" +
                             ", music production, speech analysis, and natural language processing. "
                         ),
                         TextSpan(text: 'My resume is ',
@@ -500,9 +524,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ],
                     ),
-                  //),
-                  ),
-                  SizedBox(height: 10),
+                  )),
+                  //SizedBox(height: 10),
                   Text(
                     "I received my BS in Computer Science from UNC Chapel Hill, and my MS in Computer Science from UCLA. I focused my studies at UCLA in wireless communications "+
                     "and novel applications for radio protocols to increase connectivity among physical communities."
@@ -511,7 +534,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   SizedBox(height: 10),
                   Text(
                     "Since graduating, I have had the opportunity to build my expertise in programming while on the R&D team at Temposonics (formerly MTS Sensors). In addition to increasing my understanding of " +
-                    "hardware with the talented electical engineers here, I have gained valuable experience in IOT software development including user interface and embedded firmware development."
+                    "hardware with the talented electical engineers here, I have gained valuable experience in IoT software development including user interface and embedded firmware development."
                     ,style: TextStyle(fontSize: _myFontSize,  color: Colors.black87)
                   ),
                   SizedBox(height: 10),
