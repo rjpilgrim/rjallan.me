@@ -39,6 +39,7 @@ std::condition_variable_any socket_cv;
 JSAMPROW row_pointers[10][1];
 
 std::vector<std::thread> fftThreads;
+std::vector<std::pair<std::shared_ptr<WsServer::Connection>, std::thread>> notifyThreads;
 
 struct jpeg_compress_struct jpeg_structs[10];
 struct jpeg_error_mgr jpeg_errors[10];
@@ -90,6 +91,9 @@ int main(int argc, char** argv)
 		std::cout << "Server: Opened connection " << connection.get() << " to " << connection->remote_endpoint().address()
 		<< ":" << connection->remote_endpoint().port();
 
+
+		notifyThreads.push_back({connection, std::thread{ [&, connection]
+		{
         int status_ = 0;
         json j;
 
@@ -112,12 +116,23 @@ int main(int argc, char** argv)
 					});
             }
         }
-        connection->send_close(1006);
+    	}
+		}});
+        //connection->send_close(1006);
 	};
 
 	// See RFC 6455 7.4.1. for status codes
 	echo.on_close = [](std::shared_ptr<WsServer::Connection> connection, int status, const std::string & /*reason*/) {
 		std::cout << "Server: Closed connection " << connection.get() << " with status code " << status << std::endl;
+		for (auto it = notifyThreads.begin(); it < notifyThreads.end(); it++) {
+			if (((*it).first.get()) == (connection.get())) {
+				if ((*it).second.joinable()) {
+					(*it).second.join();
+				}
+				notifyThreads.erase(it);
+				break;
+			}
+		}
 	};
 
 	// See http://www.boost.org/doc/libs/1_55_0/doc/html/boost_asio/reference.html, Error Codes for error code meanings
@@ -389,6 +404,8 @@ int main(int argc, char** argv)
 		}
 		}});
 	}
+
+	//2145
 /*
 	//This will extract 10 seconds of audio from icecast
 	system("curl --speed-time 10 --speed-limit 100000000000  --output speedlimit.mp3 --trace myTrace.txt --trace-time  https://stream-relay-geo.ntslive.net/stream2");
